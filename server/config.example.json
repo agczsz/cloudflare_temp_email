@@ -1,0 +1,29 @@
+{
+    "PORT": 48321,
+    "SMTP_PORT": 25,
+    "DB_PATH": "./data/temp-email.db",
+    "FRONTEND_DIST": "../frontend/dist",
+
+    "TITLE": "266666 Temp Mail",
+    "DEFAULT_LANG": "zh",
+    "PREFIX": "",
+    "DOMAINS": ["266666.best"],
+    "DEFAULT_DOMAINS": ["266666.best"],
+
+    "JWT_SECRET": "CHANGE-ME-to-a-long-random-string",
+    "ADMIN_PASSWORDS": ["CHANGE-ME-admin-password"],
+    "ENABLE_USER_CREATE_EMAIL": true,
+    "ENABLE_USER_DELETE_EMAIL": true,
+    "ENABLE_ADDRESS_PASSWORD": true,
+
+    "ENABLE_AI_EMAIL_EXTRACT": true,
+    "AI_EXTRACT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "AI_API_KEY": "",
+    "AI_ACCOUNT_ID": "",
+
+    "RATE_LIMIT_COUNT": 60,
+    "RATE_LIMIT_PERIOD": 60,
+
+    "ENABLE_WEBHOOK": false,
+    "ENABLE_AUTO_REPLY": false
+}

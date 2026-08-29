@@ -239,6 +239,19 @@ const getNameRegex = (c: Context<HonoCustomType>): RegExp => {
     return DEFAULT_NAME_REGEX;
 }
 
+/**
+ * Run a background promise. On Cloudflare Workers this uses
+ * executionCtx.waitUntil; on the Node server runtime there is no execution
+ * context (accessing it throws), so the promise simply runs detached.
+ */
+export function fireAndForget(c: Context<HonoCustomType>, p: Promise<any>): void {
+    try {
+        c.executionCtx.waitUntil(p);
+    } catch {
+        p.catch((e) => console.error("background task error:", e));
+    }
+}
+
 export function updateAddressUpdatedAt(
     c: Context<HonoCustomType>,
     address: string | undefined | null
@@ -247,7 +260,7 @@ export function updateAddressUpdatedAt(
         return;
     }
     // update address updated_at asynchronously
-    c.executionCtx.waitUntil((async () => {
+    fireAndForget(c, (async () => {
         try {
             await c.env.DB.prepare(
                 `UPDATE address SET updated_at = datetime('now')`
@@ -268,7 +281,7 @@ export function updateUserAddressesUpdatedAt(
     if (!userId) {
         return;
     }
-    c.executionCtx.waitUntil((async () => {
+    fireAndForget(c, (async () => {
         try {
             await c.env.DB.prepare(
                 `UPDATE address SET updated_at = datetime('now')`
