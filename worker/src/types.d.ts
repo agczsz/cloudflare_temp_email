@@ -112,6 +112,9 @@ type Bindings = {
     // webhook config
     FRONTEND_URL: string | undefined
 
+    // addy.io compatible API for Bitwarden username generator (empty = disabled)
+    ADDY_AUTH_TOKEN: string | undefined
+
     // AI extraction config
     ENABLE_AI_EMAIL_EXTRACT: string | boolean | undefined
     AI_EXTRACT_MODEL: string | undefined

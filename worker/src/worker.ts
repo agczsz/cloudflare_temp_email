@@ -10,6 +10,7 @@ import { api as userApi } from './user_api';
 import { api as adminApi } from './admin_api';
 import { api as apiSendMail } from './mails_api/send_mail_api'
 import { api as telegramApi } from './telegram_api'
+import { api as addyApi } from './addy_api';
 
 import i18n from './i18n';
 import { email } from './email';
@@ -149,6 +150,12 @@ const checkoutUserRolePayload = async (
 
 // api auth
 app.use('/api/*', async (c, next) => {
+	// addy.io compatible endpoint (/api/v1/*, Bitwarden) authenticates itself
+	// via Bearer ADDY_AUTH_TOKEN inside addy_api.ts
+	if (c.req.path.startsWith("/api/v1/")) {
+		await next();
+		return;
+	}
 	if (c.req.path.startsWith("/api/new_address")) {
 		await checkUserPayload(c);
 		await next();
@@ -267,6 +274,7 @@ app.route('/', userApi)
 app.route('/', adminApi)
 app.route('/', apiSendMail)
 app.route('/', telegramApi)
+app.route('/', addyApi)
 
 const health_check = async (c: Context<HonoCustomType>) => {
 	const lang = c.req.raw.headers.get("x-lang") || c.env.DEFAULT_LANG;

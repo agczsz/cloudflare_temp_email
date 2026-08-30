@@ -38,6 +38,11 @@ await build({
     format: "esm",
     outfile: "dist/server.js",
     external: ["better-sqlite3", "@aws-sdk/*", "@hono/node-server"],
+    loader: {
+        // mail-parser-wasm-worker imports the wasm as a module; inline it as
+        // bytes so initSync can compile it under plain Node
+        ".wasm": "binary",
+    },
     plugins: [cfStubPlugin],
     banner: {
         js: [
