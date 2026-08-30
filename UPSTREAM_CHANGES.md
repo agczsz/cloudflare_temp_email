@@ -99,6 +99,7 @@
 | `bfbbf31` | **本次功能**：启用 WASM 解析（`common.ts` 取消注释 + 依赖 + `.wasm` binary loader）；配置启用 webhook/gzip；新增 `addy_api.ts`（Bitwarden/Addy.io 兼容）；`worker.ts` 注册路由 + `/api/v1/` 中间件放行；`types.d.ts` 加 `ADDY_AUTH_TOKEN` | `common.ts`、`worker.ts`、`types.d.ts` |
 | `4e1aab0` | 本核查文档 | — |
 | `796addf` | 文档补全（KV 细节 + 完整历史） | — |
+| `0927e86` | **sendbox 修复**：SMTP 提交服投递成功后用 postal-mime 解析并按上游 `v2` 格式写入 `sendbox` 表（web 发件箱数据源），与网页发件行为一致；`postal-mime` 补进 server 依赖（此前只装在 worker/，esbuild 对 server 侧动态导入解析不到会留成运行时导入） | `mails_api/send_mail_api.ts` 的 sendbox 写入格式（`INSERT INTO sendbox (address, raw) VALUES` + version v2 JSON） |
 | 本次 | **发件 + 邮件客户端端口**：`sendmail.ts`（SEND_MAIL→MX 路由直投器：`dns.resolveMx` 选 MX + nodemailer 纯客户端 25 端口投递 + DKIM 签名；配置 SEND_RELAY_* 可切 smarthost 中继。注：nodemailer ≥6 已移除内建 `direct:true`，故自实现 MX 路由）、`submit.ts`（465 隐式 SSL 提交，AUTH=地址+地址密码，from 锁定）、`imap.ts`（993 隐式 SSL 只读 IMAP，raw_blob 自动解压）；`build.mjs` 的 EmailMessage stub 携带 from/to/raw；DKIM DNS：`smtp._domainkey.266666.best` TXT（DMARC 沿用上游默认 `_dmarc` p=none + Cloudflare 报告地址）；新增依赖 nodemailer（锁定 ^6，v7+ 直投行为变化） | 无上游文件改动（纯新增组件 + `build.mjs`/`entry.ts`/`config.example.json`） |
 
 ## 七、已知与上游行为不一致的点（有意为之）
