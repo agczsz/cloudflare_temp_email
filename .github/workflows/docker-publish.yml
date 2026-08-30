@@ -31,14 +31,12 @@ jobs:
         id: tags
         run: |
           IMG=ghcr.io/${{ github.repository }}
-          TAGS="$IMG:${GITHUB_REF_NAME}"
-          if [ "$GITHUB_REF_NAME" = "main" ] || [ "$GITHUB_REF_NAME" = "vps-node" ]; then
-            TAGS="$TAGS
-$IMG:latest"
-          fi
           {
             echo "tags<<EOF"
-            echo "$TAGS"
+            echo "$IMG:${GITHUB_REF_NAME}"
+            if [ "$GITHUB_REF_NAME" = "main" ] || [ "$GITHUB_REF_NAME" = "vps-node" ]; then
+              echo "$IMG:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
