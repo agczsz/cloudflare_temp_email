@@ -21,6 +21,11 @@
     "AI_API_KEY": "",
     "AI_ACCOUNT_ID": "",
 
+    "ENABLE_WEBHOOK": true,
+    "FRONTEND_URL": "https://mail.266666.best",
+    "ENABLE_MAIL_GZIP": true,
+    "ADDY_AUTH_TOKEN": "",
+
     "RATE_LIMIT_COUNT": 60,
     "RATE_LIMIT_PERIOD": 60,
 

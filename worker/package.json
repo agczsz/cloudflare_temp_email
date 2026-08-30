@@ -25,6 +25,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "hono": "^4.13.3",
     "jsonpath-plus": "^10.4.0",
+    "mail-parser-wasm-worker": "^0.2.2",
     "mimetext": "^3.0.28",
     "postal-mime": "^2.7.6",
     "resend": "^6.20.0",
