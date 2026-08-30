@@ -145,3 +145,16 @@ e2e/.e2e-pids
 
 # SMTP/IMAP proxy persisted IMAP flags (local dev / bare-metal runs)
 smtp_proxy_server/data/
+
+# node server runtime
+server/node_modules/
+server/dist/
+server/data/
+server/config.json
+server/package-lock.json
+*.db
+*.db-wal
+*.db-shm
+
+# npm lockfiles (repo uses pnpm; docker builds use plain npm install)
+package-lock.json

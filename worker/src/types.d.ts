@@ -103,6 +103,7 @@ type Bindings = {
 
     // telegram config
     TELEGRAM_BOT_TOKEN: string
+    TELEGRAM_WEBHOOK_HOST: string | undefined
     TG_MAX_ADDRESS: number | undefined
     TG_BOT_INFO: string | object | undefined
     TG_ALLOW_USER_LANG: string | boolean | undefined

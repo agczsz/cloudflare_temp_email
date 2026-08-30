@@ -1,0 +1,26 @@
+{
+    "PORT": 48321,
+    "SMTP_PORT": 2525,
+    "DB_PATH": "./data/test.db",
+    "FRONTEND_DIST": "../frontend/dist",
+    "TITLE": "Local Test",
+    "DEFAULT_LANG": "zh",
+    "PREFIX": "",
+    "DOMAINS": [
+        "266666.best"
+    ],
+    "DEFAULT_DOMAINS": [
+        "266666.best"
+    ],
+    "JWT_SECRET": "local-test-secret",
+    "ADMIN_PASSWORDS": [
+        "test-admin"
+    ],
+    "ENABLE_USER_CREATE_EMAIL": true,
+    "ENABLE_USER_DELETE_EMAIL": true,
+    "ENABLE_ADDRESS_PASSWORD": true,
+    "ENABLE_AI_EMAIL_EXTRACT": false,
+    "RATE_LIMIT_COUNT": 100,
+    "RATE_LIMIT_PERIOD": 60,
+    "TELEGRAM_BOT_TOKEN": "111111:TEST_TOKEN_LOCAL"
+}
