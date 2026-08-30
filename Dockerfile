@@ -7,9 +7,10 @@ COPY worker/src ./worker/src
 COPY server/package.json server/build.mjs ./server/
 COPY server/src ./server/src
 # worker runtime deps must be resolvable for bundling; the server dir only gets
-# esbuild because better-sqlite3 stays external (avoids a native build here)
+# esbuild --ignore-scripts so better-sqlite3 never compiles here (it stays
+# external in the bundle; the runtime stage installs it with build tools)
 RUN cd worker && npm install --omit=dev --no-audit --no-fund \
- && cd ../server && npm install --no-save --no-audit --no-fund esbuild \
+ && cd ../server && npm install --no-save --ignore-scripts --no-audit --no-fund esbuild \
  && node build.mjs
 
 # ---- stage 2: build the frontend (same-origin API base) ----
