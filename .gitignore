@@ -155,3 +155,6 @@ server/package-lock.json
 *.db
 *.db-wal
 *.db-shm
+
+# npm lockfiles (repo uses pnpm; docker builds use plain npm install)
+package-lock.json

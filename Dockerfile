@@ -24,7 +24,15 @@ RUN printf 'VITE_API_BASE=\nVITE_CF_WEB_ANALY_TOKEN=\nVITE_IS_TELEGRAM=false\n' 
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app/server
 COPY server/package.json ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+# better-sqlite3 has no prebuilt binary for this node patch, so it compiles
+# from source: build tools are installed and purged again in one layer
+RUN apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends python3 make g++ \
+ && npm install --omit=dev --no-audit --no-fund \
+ && npm cache clean --force \
+ && apt-get purge -y -qq python3 make g++ \
+ && apt-get autoremove -y -qq \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=serverbuild /build/server/dist ./dist
 COPY --from=febuild /build/dist /app/frontend/dist
 COPY db /app/db
