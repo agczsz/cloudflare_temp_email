@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import dns from "node:dns";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -6,16 +7,20 @@ import crypto from "node:crypto";
 /**
  * Outbound mail component: replaces the Cloudflare `send_email` binding.
  *
- * - `createSendMailBinding()` returns a SEND_MAIL-compatible object; upstream
- *   code calls `SEND_MAIL.send(...)` with either a structured object
- *   ({from,to,subject,html,text,...}) or an EmailMessage instance
- *   ({from,to,raw}) — both are handled here via nodemailer.
- * - Delivery mode: direct-to-MX by default (nodemailer direct transport);
- *   set SEND_RELAY_HOST (+ optional SEND_RELAY_PORT/USER/PASS) to relay
- *   through a smarthost instead.
- * - DKIM: the RSA key is generated on first boot under
- *   `<data>/dkim/<selector>.private.pem`; publish
- *   `<selector>._domainkey.<domain>` TXT to make signatures verifiable.
+ * Delivery modes:
+ *  - direct (default): per-recipient-domain MX routing (dns.resolveMx), each
+ *    domain is delivered by a plain nodemailer SMTP client on port 25 with our
+ *    EHLO name and DKIM signature. Requires the VPS provider to allow outbound
+ *    port 25.
+ *  - relay: set SEND_RELAY_HOST (+ optional SEND_RELAY_PORT/USER/PASS/
+ *    SEND_RELAY_TLS_INSECURE) to hand everything to a smarthost instead.
+ *
+ * `SEND_MAIL.send(msg)` accepts both shapes upstream uses:
+ *  - structured: {from, to, subject, html?, text?, cc?, bcc?, replyTo?,
+ *    attachments?, headers?}
+ *  - EmailMessage instance: {from, to, raw}
+ * `mailer.sendMail(opts)` (same options) is shared with the 465 submission
+ * server so client-submitted mail gets identical treatment.
  */
 
 export interface DkimInfo {
@@ -46,70 +51,129 @@ export function ensureDkimKey(cfg: { DB_PATH: string; DKIM_SELECTOR?: string; DO
     return { privateKey, publicKey, dnsRecord };
 }
 
-export function createTransporter(cfg: any, dkim?: DkimInfo) {
-    const dkimOpt = dkim
-        ? {
-              domainName: (Array.isArray(cfg.DOMAINS) ? cfg.DOMAINS[0] : "localhost"),
-              keySelector: cfg.DKIM_SELECTOR || "smtp",
-              privateKey: dkim.privateKey,
-          }
-        : undefined;
-    if (cfg.SEND_RELAY_HOST) {
-        const port = Number(cfg.SEND_RELAY_PORT || 587);
-        return nodemailer.createTransport({
-            host: cfg.SEND_RELAY_HOST,
-            port,
-            secure: port === 465,
-            tls: cfg.SEND_RELAY_TLS_INSECURE ? { rejectUnauthorized: false } : undefined,
-            auth: cfg.SEND_RELAY_USER
-                ? { user: cfg.SEND_RELAY_USER, pass: cfg.SEND_RELAY_PASS || "" }
-                : undefined,
-            dkim: dkimOpt,
-        });
-    }
-    return nodemailer.createTransport({
-        direct: true,
-        name: "smtp.266666.best",
-        dkim: dkimOpt,
-    });
-}
-
-export function createSendMailBinding(cfg: any, transporter: nodemailer.Transporter) {
-    return {
-        async send(msg: any): Promise<void> {
-            if (msg && msg.raw !== undefined) {
-                // EmailMessage instance: {from, to, raw}
-                await transporter.sendMail({
-                    from: msg.from,
-                    to: msg.to,
-                    raw: String(msg.raw),
-                });
-                return;
-            }
-            const attachments = Array.isArray(msg?.attachments)
-                ? msg.attachments.map((a: any) => ({
-                      filename: a.filename || a.name || "attachment",
-                      content: a.content,
-                      encoding: typeof a.content === "string" ? "base64" : undefined,
-                      contentType: a.contentType || a.mimeType,
-                  }))
-                : undefined;
-            let headers = msg?.headers;
-            if (headers && typeof headers === "object" && !Array.isArray(headers)) {
-                headers = Object.entries(headers).map(([k, v]) => ({ key: k, value: String(v) }));
-            }
-            await transporter.sendMail({
-                from: msg?.from,
-                to: msg?.to,
-                cc: msg?.cc,
-                bcc: msg?.bcc,
-                replyTo: msg?.replyTo,
-                subject: msg?.subject,
-                text: msg?.text,
-                html: msg?.html,
-                headers,
-                attachments,
-            });
-        },
+const normalizeAddresses = (vals: any): string[] => {
+    const out: string[] = [];
+    const walk = (v: any) => {
+        if (!v) return;
+        if (typeof v === "string") out.push(v);
+        else if (Array.isArray(v)) v.forEach(walk);
+        else if (typeof v === "object" && v.address) out.push(v.address);
     };
+    walk(vals);
+    return out;
+};
+
+const domainOf = (addr: string): string => (addr.split("@")[1] || "").toLowerCase();
+
+export function createMailer(cfg: any, dkim?: DkimInfo) {
+    const firstDomain = Array.isArray(cfg.DOMAINS) ? cfg.DOMAINS[0] : String(cfg.DOMAINS || "").split(",")[0];
+    const helloName = cfg.HELLO_NAME || `smtp.${firstDomain || "localhost"}`;
+    const dkimOpt = dkim
+        ? { domainName: firstDomain || "localhost", keySelector: cfg.DKIM_SELECTOR || "smtp", privateKey: dkim.privateKey }
+        : undefined;
+
+    // relay mode: one fixed smarthost
+    const relayTransport = cfg.SEND_RELAY_HOST
+        ? nodemailer.createTransport({
+              host: cfg.SEND_RELAY_HOST,
+              port: Number(cfg.SEND_RELAY_PORT || 587),
+              secure: Number(cfg.SEND_RELAY_PORT || 587) === 465,
+              tls: cfg.SEND_RELAY_TLS_INSECURE ? { rejectUnauthorized: false } : undefined,
+              auth: cfg.SEND_RELAY_USER
+                  ? { user: cfg.SEND_RELAY_USER, pass: cfg.SEND_RELAY_PASS || "" }
+                  : undefined,
+              dkim: dkimOpt,
+          })
+        : null;
+
+    // direct mode: stream-transport to render structured messages to raw bytes,
+    // per-domain MX transports (created lazily, cached) for delivery
+    const renderer = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: "normalize" });
+    const mxCache = new Map<string, string>();
+    const directTransports = new Map<string, nodemailer.Transporter>();
+
+    async function pickMxHost(domain: string): Promise<string> {
+        if (mxCache.has(domain)) return mxCache.get(domain)!;
+        let host = domain;
+        try {
+            const records = await dns.promises.resolveMx(domain);
+            if (records && records.length) {
+                records.sort((a, b) => a.priority - b.priority);
+                host = records[0].exchange;
+            }
+        } catch {
+            /* no MX -> fall back to the A record of the domain itself */
+        }
+        mxCache.set(domain, host);
+        return host;
+    }
+
+    function directTransportFor(host: string): nodemailer.Transporter {
+        let t = directTransports.get(host);
+        if (!t) {
+            t = nodemailer.createTransport({
+                host,
+                port: 25,
+                name: helloName,
+                connectionTimeout: 30_000,
+                socketTimeout: 60_000,
+                dkim: dkimOpt,
+            });
+            directTransports.set(host, t);
+        }
+        return t;
+    }
+
+    async function sendMail(opts: any): Promise<any> {
+        if (relayTransport) {
+            return relayTransport.sendMail(opts);
+        }
+        let raw: Buffer;
+        let from = opts?.from;
+        let recipients: string[];
+        if (opts?.raw !== undefined) {
+            raw = Buffer.from(opts.raw);
+            recipients = normalizeAddresses(opts?.to);
+        } else {
+            const info: any = await new Promise((resolve, reject) => {
+                renderer.sendMail({ ...opts, dkim: undefined }, (err: any, res: any) =>
+                    err ? reject(err) : resolve(res));
+            });
+            raw = info.message;
+            recipients = normalizeAddresses([opts?.to, opts?.cc, opts?.bcc]);
+        }
+        if (!recipients.length) throw new Error("no recipients");
+
+        const byDomain = new Map<string, string[]>();
+        for (const rcpt of recipients) {
+            const dom = domainOf(rcpt);
+            if (!dom) throw new Error(`invalid recipient: ${rcpt}`);
+            byDomain.set(dom, [...(byDomain.get(dom) || []), rcpt]);
+        }
+
+        const failures: string[] = [];
+        for (const [dom, rcpts] of byDomain) {
+            try {
+                const host = await pickMxHost(dom);
+                if (!host) throw new Error("no MX/A host");
+                await directTransportFor(host).sendMail({ from, to: rcpts, raw });
+                console.log(`[direct] ${from} -> ${rcpts.join(",")} via ${host}`);
+            } catch (e: any) {
+                console.error(`[direct] delivery to ${dom} failed: ${e.message}`);
+                failures.push(`${dom}: ${e.message}`);
+            }
+        }
+        if (failures.length) {
+            throw new Error(
+                `direct delivery failed (${failures.join("; ")})` +
+                    (cfg.SEND_RELAY_HOST ? "" : " — if outbound port 25 is blocked by the provider, configure SEND_RELAY_HOST"));
+        }
+        return { accepted: recipients };
+    }
+
+    async function send(msg: any): Promise<void> {
+        await sendMail(msg);
+    }
+
+    return { sendMail, send };
 }

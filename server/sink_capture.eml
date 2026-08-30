@@ -1,17 +1,17 @@
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=266666.best;
  q=dns/txt; s=smtp; bh=Ewgj6kom93QMzzjPL9gh+FcFjbgliHU7wT2phes8IPQ=;
  h=from:subject:date:message-id:to:mime-version:content-type:content-transfer-encoding;
- b=OxF/WoyRFLyfWRkXelX3b7vcqs3e0M76QmjSnU3mNrCYnNxNdNm7dua2y4RfknxU8O/3pv/ox
- QVRycbIeQMgPQ6ICIQfx7VcEAjO4uC53kU9vjg48v4Addk/VrsTVWgs65a9ehPtqs1nkCDM5zh+
- BN9UT7XosKErygFewRXGo2jqLUvH/kw6XzNuSl4X2UdiTZmkFjRty2pdB7pgGAC5TShyIkDnWRb
- 24t/2Dcs1WT48cG4VAxuN/eoIBlCoINregGWDRL2WP1WwqghXy7q3lzRYq57I5eMLFFi5x1cuEk
- jWGBW0n5IASWi7mzVlwlxgwQsjVusgztkHJ2GHjQhbEA==
+ b=J5tmOWx9Nz4pY1nayXTpiWyYUzGbClX1/G4Vk0e0br//zIjCbzDS0jZ0XGLJwgQ/FUHSExf8l
+ /ekYE9sRGzseh+Ah2C7NWSFbvKAaMJxUBeOKhiPGjCM6hfktRDGM2qunCNQ1mIdl2lrMvtvOsot
+ TGHv0jpIZwxw9vxEhP1X5KbPifctlIJ2mXbVBfDQRs110SgYV6GrnDdCLGjb3d4zJpFwyDPJMkO
+ xTmqEEwUkx1kgrzASBtbwtyX9f7IWNVlVVe0F8CK1wqj3jGaSC9TbP+Nu0WLMYDCCo0SHpICiJ5
+ 1KLMAKM+RTMy9KeXo+gXF5a/Pxa60+dAPwqnT8n/QMIA==
 From: mailcli1@266666.best
 To: victim@relay-dest.test
 Subject: SHIM structured test
-Message-ID: <4008a44d-5ade-0d18-8568-25fcb7f86e8c@266666.best>
+Message-ID: <559e9e5c-633a-6aa1-a373-459e84d3feec@266666.best>
 Content-Transfer-Encoding: 7bit
-Date: Sun, 30 Aug 2026 09:35:30 +0000
+Date: Sun, 30 Aug 2026 09:57:50 +0000
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
@@ -19,11 +19,11 @@ hello from shim
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=266666.best;
  q=dns/txt; s=smtp; bh=AUqoylOavPlum/MDd26qCLRJtrtM7DwYl9yZcDVJJZs=;
  h=from:subject:to;
- b=gndNe/ZlOJFWqjjTnlt1SlJvq/IqtbOV9kuLkMsoaNZdM7gRZXOCzrBGobNvmb86ItvgmKvGL
- fWyGwfPs7qL796KYvSVW2+A+uctGzd/qahVLyT4XpE6re0TWgVkm30r4CXN8gyn7UqqPS2Re9MN
- XvI88ANsqCPTXcFgx9/xT/JODL4z8oxfIDPolSWB3PnKM6ROdzxNxgx9JB4AgKtIwbdg0gYnNRN
- hZiMtmCms2NypdFohS2qSEFWCHHhfv9CvPmWe+UW86sFOWhZ0cJeQ3c0ClTy1XOnshPr0CQ6hLb
- jtcSwiTRi5zMfEURkvpr0fiwKvLVMJ/zh2UglY0n3A2g==
+ b=elEpZxrSgbauBhJ3Wshdf+U408q8k56cc0q41qH2wtiskz9OgVigCQXh8i7gJTo1O7hKvrNcu
+ MU/MDQV22/YlB022+QgfsWq92TrEDY3F2yg6lCoL2Syxj52PLFcrWmjeNQFAGRFcvx85RvqmTeL
+ bkTBNpcpH/W8slY32H/nCA4Dgigkia9l/jvd1GnNI15Es+wJ8kb1GbDsXNbRpJXy3EfWxOfOz1D
+ vJ2pSUTLAqYpx1OCabU8USBvlb3/7Tg/J3S9ROWieHKBLBJE5tP2ehvFPKXdM2DSDz69XTgM1ju
+ ioOThCwSQrA7koH2jUuqM0KCes2WQNRCj00r2R3UQMoA==
 From: mailcli1@266666.best
 To: victim2@relay-dest.test
 Subject: SUBMIT test 979799

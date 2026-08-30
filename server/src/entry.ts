@@ -25,7 +25,7 @@ import { createAiBinding } from "./ai";
 import { createRateLimiter } from "./ratelimit";
 import { createAssets } from "./assets";
 import { startSmtpServer } from "./smtp";
-import { ensureDkimKey, createTransporter, createSendMailBinding } from "./sendmail";
+import { ensureDkimKey, createMailer } from "./sendmail";
 import { startSubmitServer } from "./submit";
 import { startImapServer } from "./imap";
 import { execSync } from "node:child_process";
@@ -78,12 +78,12 @@ async function main() {
         RATE_LIMITER: createRateLimiter(cfg),
         ASSETS: createAssets(cfg.FRONTEND_DIST),
     };
-    // outbound sending: SEND_MAIL-compatible binding over nodemailer
-    // (direct-to-MX by default, or relay via SEND_RELAY_HOST); addy-style
-    // scoping via SEND_MAIL_DOMAINS applies inside the worker
+    // outbound sending: SEND_MAIL-compatible mailer over nodemailer
+    // (direct-to-MX by default, or relay via SEND_RELAY_HOST); domain scoping
+    // via SEND_MAIL_DOMAINS applies inside the worker
     const dkim = ensureDkimKey(cfg);
-    const transporter = createTransporter(cfg, dkim);
-    env.SEND_MAIL = createSendMailBinding(cfg, transporter);
+    const mailer = createMailer(cfg, dkim);
+    env.SEND_MAIL = mailer;
     env.SEND_MAIL_DOMAINS = allDomains;
 
     // @hono/node-server calls fetch(request) without env — inject ours here.
@@ -113,7 +113,7 @@ async function main() {
             key: tls.key,
             d1,
             domains: allDomains,
-            transporter,
+            transporter: mailer,
         });
     } else {
         console.log("[submit] SMTPS disabled (SMTP_SSL_PORT=0 or no TLS cert)");
