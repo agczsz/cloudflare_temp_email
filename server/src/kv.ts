@@ -9,11 +9,18 @@ export class KVNamespaceShim {
         d1.exec(`CREATE TABLE IF NOT EXISTS kv_storage (
             key TEXT PRIMARY KEY,
             value TEXT,
-            expires_at INTEGER
+            expires_at INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
+        // migrate tables created before the created_at column existed
+        try {
+            d1.exec(`ALTER TABLE kv_storage ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+        } catch {
+            /* column already exists */
+        }
     }
 
-    async get(key: string, type?: string): Promise<string | null> {
+    async get(key: string, type?: string): Promise<any> {
         const row = this.d1.db
             .prepare(`SELECT value, expires_at FROM kv_storage WHERE key = ?`)
             .get(key) as any;
@@ -22,7 +29,15 @@ export class KVNamespaceShim {
             this.d1.db.prepare(`DELETE FROM kv_storage WHERE key = ?`).run(key);
             return null;
         }
-        return row.value as string;
+        const v = row.value as string;
+        if (type === "json") {
+            try { return JSON.parse(v); } catch { return null; }
+        }
+        if (type === "number") {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        }
+        return v;
     }
 
     async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {

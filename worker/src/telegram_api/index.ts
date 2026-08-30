@@ -48,7 +48,9 @@ api.post("/telegram/webhook", async (c) => {
 });
 
 api.post("/admin/telegram/init", async (c) => {
-    const domain = new URL(c.req.url).host;
+    // behind a TLS proxy the request URL host is the internal one (e.g. :48321),
+    // so allow overriding the public host for the webhook URL
+    const domain = c.env.TELEGRAM_WEBHOOK_HOST || new URL(c.req.url).host;
     const token = c.env.TELEGRAM_BOT_TOKEN;
     const webhookUrl = `https://${domain}/telegram/webhook`;
     console.log(`setting webhook to ${webhookUrl}`);
