@@ -17,6 +17,7 @@
 | 3 | `worker/src/worker.ts` | ④ 导入并注册 `addy_api` 路由；⑤ `/api/*` JWT 中间件最前面放行 `/api/v1/`（addy 端点自带 Bearer 认证） | Bitwarden（Addy.io 协议）兼容端点 | 中。若上游调整 `/api/*` 中间件结构，需重排放行逻辑 |
 | 4 | `worker/src/telegram_api/index.ts` | ⑥ `POST /admin/telegram/init` 的 webhook 域名优先取 `TELEGRAM_WEBHOOK_HOST` 环境变量，缺省回落 `new URL(c.req.url).host` | TLS 反代后 `c.req.url` 是内网地址(:48321)，webhook 会注册成错误端口 | 低 |
 | 5 | `worker/src/types.d.ts` | ⑦ `Bindings` 增加 `TELEGRAM_WEBHOOK_HOST`、`ADDY_AUTH_TOKEN` 两个可选字段声明 | 类型完整性 | 极低 |
+| 6 | `worker/package.json` | ⑧ dependencies 新增 `mail-parser-wasm-worker`（WASM 解析） | 特性启用 | 极低。上游升级该包后需重新验证 Node 下 `.wasm` binary loader 打包 |
 
 ## 二、新增文件（上游没有，合并不冲突，但升级后需确认依赖的上游接口没变）
 
@@ -55,9 +56,36 @@
    - 地址创建走上游同一条 `newAddress()` 校验链（前缀/正则/长度/黑名单全部生效），`source_meta` 记为 `bitwarden-addy`
    - 验证：正确 token 创建成功、错误/缺失 token 401、未配置 token 403
 
-## 五、已知与上游行为不一致的点（有意为之）
+## 五、KV 存储实现细节（VPS 专属，上游更新 KV 相关代码时必读）
+
+上游用 Cloudflare KV，本分支用 SQLite 表 `kv_storage` 模拟（`server/src/kv.ts`）。**上游若新增 KV 用法，需确认 shim 是否覆盖：**
+
+| 项 | 说明 |
+|----|------|
+| 表结构 | `kv_storage(key TEXT PRIMARY KEY, value TEXT, expires_at INTEGER NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)` |
+| 迁移 | 启动时 `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN created_at`（catch 重复列错误）。**旧库自动补列，勿手工删表** |
+| 已支持语义 | `get(key[, "json"|"number"])`、`put(key, value, {expirationTtl})`、`delete(key)`、`list({prefix})`；过期在读时惰性删除 |
+| 与上游的差异 | KV 最终一致 vs 本地强一致；无 `metadata` 参数；无 `cacheTtl`；大 value 无 25MB 限制（SQLite） |
+| 历史 bug（已修，防回归） | ① 建表缺 `created_at` 列但 INSERT 引用 → TG 设置保存 500（commit `8fdfd83`）；② `get(key,"json")` 未实现导致返回字符串而非对象（同 commit） |
+
+## 六、变更历史（按时间顺序，上游更新时逐条核对）
+
+| 提交 | 内容 | 涉及上游文件 |
+|------|------|--------------|
+| `2898918` | Node 运行时适配层（`server/` 全套：D1/KV/AI/RATE_LIMITER/ASSETS/SMTP）；`common.ts` 加 `fireAndForget` 替换 `executionCtx.waitUntil`；前端同源 `.env.prod` | `common.ts` |
+| `e11b9cc` | systemd 单元 + VPS 部署文档 | — |
+| `14282b2` | Dockerfile / docker-compose / ghcr.io Actions | — |
+| `8fdfd83` | KV 修复：`kv_storage` 补 `created_at` 列（含旧库 ALTER 迁移）、实现 `get(key,"json"/"number")`；TG webhook 域名支持 `TELEGRAM_WEBHOOK_HOST` 覆盖（见五、一#4⑥⑦） | `telegram_api/index.ts`、`types.d.ts` |
+| `4c79a21` | VPS 部署脚本（`server/vps_deploy.sh`） | — |
+| `bd92b59`→`071e59e` | 部署脚本密钥改为环境变量读取（Push Protection 要求）；CI yaml 修复；runtime 层补 better-sqlite3 编译工具 | `Dockerfile`、`.github/` |
+| `affcc9e` / `bf04b9c` | Docker 打包层只装 esbuild（`--ignore-scripts`），避免打包阶段编译 better-sqlite3 | `Dockerfile` |
+| `bfbbf31` | **本次功能**：启用 WASM 解析（`common.ts` 取消注释 + 依赖 + `.wasm` binary loader）；配置启用 webhook/gzip；新增 `addy_api.ts`（Bitwarden/Addy.io 兼容）；`worker.ts` 注册路由 + `/api/v1/` 中间件放行；`types.d.ts` 加 `ADDY_AUTH_TOKEN` | `common.ts`、`worker.ts`、`types.d.ts` |
+| `4e1aab0` | 本核查文档 | — |
+
+## 七、已知与上游行为不一致的点（有意为之）
 
 - `SEND_MAIL` 绑定不存在 → 发件相关接口返回优雅错误（收件不受影响）
 - `RATE_LIMITER` 为进程内固定窗口（重启清零）
-- `KV` 存 SQLite 表 `kv_storage`（含 `created_at` 列，勿删）
+- `KV` 存 SQLite 表 `kv_storage`（见第五节）
 - 打包时 `cloudflare:sockets` / `cloudflare:email` 用 stub 顶替（仅发件路径会触发）
+- SMTP 收信直接写入 `email()` 处理器，多收件人会各存一份（与 CF Email Routing 行为一致）
