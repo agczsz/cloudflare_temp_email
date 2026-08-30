@@ -1,0 +1,21 @@
+services:
+  temp-email:
+    image: ghcr.io/${GHCR_REPOSITORY:-agczsz/cloudflare_temp_email}:latest
+    build: .
+    container_name: temp-email
+    ports:
+      - "48321:48321"   # HTTP API + frontend (put your TLS proxy in front of this)
+      - "25:25"         # SMTP ingestion for DOMAINS
+    environment:
+      # everything in config.json can also be set as TE_* env vars, e.g.:
+      # TE_DOMAINS: '["266666.best"]'
+      # TE_JWT_SECRET: "change-me"
+      # TE_AI_API_KEY: ""
+      # TE_AI_ACCOUNT_ID: ""
+      # TE_TELEGRAM_BOT_TOKEN: ""
+      # TE_ADMIN_PASSWORDS: '["change-me"]'
+      CONFIG_FILE: /app/server/config.json
+    volumes:
+      - ./server/config.json:/app/server/config.json:ro
+      - ./server/data:/app/server/data
+    restart: unless-stopped
