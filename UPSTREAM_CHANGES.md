@@ -110,3 +110,13 @@
 - 打包时 `cloudflare:sockets` / `cloudflare:email` 用 stub 顶替（EmailMessage stub 携带 from/to/raw，发件路径可用）
 - SMTP 收信直接写入 `email()` 处理器，多收件人会各存一份（与 CF Email Routing 行为一致）
 - 465=隐式 SSL（`secure:true`，不提供 STARTTLS）；外发中继 587 走标准 STARTTLS 机会升级
+
+## 八、已知上游问题（按用户要求未修，仅记录）
+
+- **admin 发件箱点击空白**：`Account.vue` 两处"查看发件箱"点击设顶层 tab 值 `adminTab.value = "sendBox"`，
+  但 `Admin.vue` 中 `sendBox` 是嵌套在顶层 `mails` tab 内的子 tab（顶层无此值）→ Naive UI 匹配不到
+  pane，内容区渲染空白卡 loading。属上游前端 bug（与 SMTP sendbox 写入无关，网页发送的记录同样触发）。
+  后端过滤已验证正常：`GET /admin/sendbox?address=xxx` 精确返回。
+  修复方案（前端 3 文件约 4 行）：`store/index.js` 加 `adminMailsSubTab = useSessionStorage('adminMailsSubTab','mails')`；
+  `Admin.vue` mails 子 tabs 加 `v-model:value="adminMailsSubTab"`；`Account.vue` 两处点击改
+  `adminTab.value='mails'; adminMailsSubTab.value='sendBox'`。已实测该改法可正确跳转，按用户要求已回滚还原。
