@@ -69,8 +69,27 @@ export function startSubmitServer(opts: {
                 const to = session.envelope.rcptTo.map((r) => r.address);
                 opts.transporter
                     .sendMail({ from, to, raw: new Uint8Array(buf) })
-                    .then((info) => {
+                    .then(async (info) => {
                         console.log(`[submit] ${from} -> ${to.join(",")} (${info.messageId})`);
+                        // mirror the web send flow: save a copy into `sendbox`
+                        // so the frontend 发件箱 shows SMTP-submitted mail too
+                        try {
+                            const { default: PostalMime } = await import("postal-mime");
+                            const parsed = await PostalMime.parse(new Uint8Array(buf));
+                            const record = {
+                                version: "v2",
+                                from_mail: from,
+                                to_mail: to.join(","),
+                                subject: parsed.subject || "",
+                                is_html: !parsed.text && !!parsed.html,
+                                content: parsed.text || parsed.html || "",
+                            };
+                            opts.d1.db
+                                .prepare(`INSERT INTO sendbox (address, raw, created_at) VALUES (?, ?, datetime('now'))`)
+                                .run(String((session as any).user || from), JSON.stringify(record));
+                        } catch (e: any) {
+                            console.warn(`[submit] failed to save sendbox copy for ${from}:`, e.message);
+                        }
                         cb();
                     })
                     .catch((e) => {

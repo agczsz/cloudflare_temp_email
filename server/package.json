@@ -15,6 +15,7 @@
     "@hono/node-server": "^1.14.4",
     "better-sqlite3": "^12.4.1",
     "nodemailer": "^6.10.1",
+    "postal-mime": "^3.0.0",
     "smtp-server": "^3.13.6"
   },
   "devDependencies": {
