@@ -25,6 +25,10 @@ import { createAiBinding } from "./ai";
 import { createRateLimiter } from "./ratelimit";
 import { createAssets } from "./assets";
 import { startSmtpServer } from "./smtp";
+import { ensureDkimKey, createTransporter, createSendMailBinding } from "./sendmail";
+import { startSubmitServer } from "./submit";
+import { startImapServer } from "./imap";
+import { execSync } from "node:child_process";
 import type { ServerConfig } from "./config";
 
 function migrate(db: D1Database, dbFile: string): void {
@@ -74,8 +78,13 @@ async function main() {
         RATE_LIMITER: createRateLimiter(cfg),
         ASSETS: createAssets(cfg.FRONTEND_DIST),
     };
-    // send_email binding does not exist on a plain VPS; the worker degrades gracefully
-    env.SEND_MAIL = undefined;
+    // outbound sending: SEND_MAIL-compatible binding over nodemailer
+    // (direct-to-MX by default, or relay via SEND_RELAY_HOST); addy-style
+    // scoping via SEND_MAIL_DOMAINS applies inside the worker
+    const dkim = ensureDkimKey(cfg);
+    const transporter = createTransporter(cfg, dkim);
+    env.SEND_MAIL = createSendMailBinding(cfg, transporter);
+    env.SEND_MAIL_DOMAINS = allDomains;
 
     // @hono/node-server calls fetch(request) without env — inject ours here.
     const nodeFetch = (request: Request) =>
@@ -94,6 +103,34 @@ async function main() {
         onMessage: (message) => worker.email(message as any, env, { waitUntil: () => { } } as any),
     });
 
+    // optional mail-client ports: SMTPS submission (:465) + IMAPS (:993)
+    const tls = resolveTls(cfg);
+    if (Number(cfg.SMTP_SSL_PORT ?? 465) > 0 && tls) {
+        startSubmitServer({
+            port: Number(cfg.SMTP_SSL_PORT ?? 465),
+            host: cfg.HOST || "0.0.0.0",
+            cert: tls.cert,
+            key: tls.key,
+            d1,
+            domains: allDomains,
+            transporter,
+        });
+    } else {
+        console.log("[submit] SMTPS disabled (SMTP_SSL_PORT=0 or no TLS cert)");
+    }
+    if (Number(cfg.IMAP_SSL_PORT ?? 993) > 0 && tls) {
+        startImapServer({
+            port: Number(cfg.IMAP_SSL_PORT ?? 993),
+            host: cfg.HOST || "0.0.0.0",
+            cert: tls.cert,
+            key: tls.key,
+            d1,
+            domains: allDomains,
+        });
+    } else {
+        console.log("[imap] IMAPS disabled (IMAP_SSL_PORT=0 or no TLS cert)");
+    }
+
     // daily scheduled cleanup (same handler the Workers cron triggered)
     const timer = setInterval(() => {
         worker.scheduled({ cron: "0 0 * * *" } as any, env, { waitUntil: () => { } } as any)
@@ -109,6 +146,35 @@ async function main() {
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
+}
+
+function resolveTls(cfg: ServerConfig): { cert: string; key: string } | null {
+    const certFile = cfg.TLS_CERT_PATH;
+    const keyFile = cfg.TLS_KEY_PATH;
+    if (certFile && keyFile && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+        return { cert: fs.readFileSync(certFile, "utf8"), key: fs.readFileSync(keyFile, "utf8") };
+    }
+    // fall back to a generated self-signed cert so the ports still work
+    const dir = path.join(path.dirname(cfg.DB_PATH), "certs");
+    const cFile = path.join(dir, "selfsigned.crt");
+    const kFile = path.join(dir, "selfsigned.key");
+    if (fs.existsSync(cFile) && fs.existsSync(kFile)) {
+        console.warn("[tls] using existing self-signed certificate (client-side warning expected)");
+        return { cert: fs.readFileSync(cFile, "utf8"), key: fs.readFileSync(kFile, "utf8") };
+    }
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+        execSync(
+            `openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes ` +
+                `-subj "/CN=mail.266666.best" -keyout "${kFile}" -out "${cFile}"`,
+            { stdio: "ignore" },
+        );
+        console.warn("[tls] generated self-signed certificate (set TLS_CERT_PATH/TLS_KEY_PATH to use a real one)");
+        return { cert: fs.readFileSync(cFile, "utf8"), key: fs.readFileSync(kFile, "utf8") };
+    } catch (e) {
+        console.error("[tls] no certificate available, mail-client ports disabled:", e);
+        return null;
+    }
 }
 
 main().catch((e) => {

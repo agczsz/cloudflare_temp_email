@@ -9,7 +9,10 @@ import { build } from "esbuild";
 const CF_STUBS = {
     "cloudflare:sockets": `export function connect() { throw new Error("cloudflare:sockets is not available on the Node server runtime"); }
 export default { connect };`,
-    "cloudflare:email": `export class EmailMessage { constructor() {} setReject(reason) {} }
+    "cloudflare:email": `export class EmailMessage {
+    constructor(from, to, raw) { this.from = from; this.to = to; this.raw = raw; }
+    setReject(reason) {}
+}
 export default { EmailMessage };`,
 };
 

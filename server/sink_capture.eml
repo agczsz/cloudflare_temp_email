@@ -1,0 +1,31 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=266666.best;
+ q=dns/txt; s=smtp; bh=Ewgj6kom93QMzzjPL9gh+FcFjbgliHU7wT2phes8IPQ=;
+ h=from:subject:date:message-id:to:mime-version:content-type:content-transfer-encoding;
+ b=OxF/WoyRFLyfWRkXelX3b7vcqs3e0M76QmjSnU3mNrCYnNxNdNm7dua2y4RfknxU8O/3pv/ox
+ QVRycbIeQMgPQ6ICIQfx7VcEAjO4uC53kU9vjg48v4Addk/VrsTVWgs65a9ehPtqs1nkCDM5zh+
+ BN9UT7XosKErygFewRXGo2jqLUvH/kw6XzNuSl4X2UdiTZmkFjRty2pdB7pgGAC5TShyIkDnWRb
+ 24t/2Dcs1WT48cG4VAxuN/eoIBlCoINregGWDRL2WP1WwqghXy7q3lzRYq57I5eMLFFi5x1cuEk
+ jWGBW0n5IASWi7mzVlwlxgwQsjVusgztkHJ2GHjQhbEA==
+From: mailcli1@266666.best
+To: victim@relay-dest.test
+Subject: SHIM structured test
+Message-ID: <4008a44d-5ade-0d18-8568-25fcb7f86e8c@266666.best>
+Content-Transfer-Encoding: 7bit
+Date: Sun, 30 Aug 2026 09:35:30 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+hello from shim
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=266666.best;
+ q=dns/txt; s=smtp; bh=AUqoylOavPlum/MDd26qCLRJtrtM7DwYl9yZcDVJJZs=;
+ h=from:subject:to;
+ b=gndNe/ZlOJFWqjjTnlt1SlJvq/IqtbOV9kuLkMsoaNZdM7gRZXOCzrBGobNvmb86ItvgmKvGL
+ fWyGwfPs7qL796KYvSVW2+A+uctGzd/qahVLyT4XpE6re0TWgVkm30r4CXN8gyn7UqqPS2Re9MN
+ XvI88ANsqCPTXcFgx9/xT/JODL4z8oxfIDPolSWB3PnKM6ROdzxNxgx9JB4AgKtIwbdg0gYnNRN
+ hZiMtmCms2NypdFohS2qSEFWCHHhfv9CvPmWe+UW86sFOWhZ0cJeQ3c0ClTy1XOnshPr0CQ6hLb
+ jtcSwiTRi5zMfEURkvpr0fiwKvLVMJ/zh2UglY0n3A2g==
+From: mailcli1@266666.best
+To: victim2@relay-dest.test
+Subject: SUBMIT test 979799
+
+submit body 979799

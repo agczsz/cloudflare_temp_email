@@ -26,6 +26,16 @@
     "ENABLE_MAIL_GZIP": true,
     "ADDY_AUTH_TOKEN": "",
 
+    "SMTP_SSL_PORT": 465,
+    "IMAP_SSL_PORT": 993,
+    "TLS_CERT_PATH": "",
+    "TLS_KEY_PATH": "",
+    "DKIM_SELECTOR": "smtp",
+    "SEND_RELAY_HOST": "",
+    "SEND_RELAY_PORT": 587,
+    "SEND_RELAY_USER": "",
+    "SEND_RELAY_PASS": "",
+
     "RATE_LIMIT_COUNT": 60,
     "RATE_LIMIT_PERIOD": 60,
 

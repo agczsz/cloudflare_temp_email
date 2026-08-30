@@ -22,5 +22,14 @@
     "ENABLE_AI_EMAIL_EXTRACT": false,
     "RATE_LIMIT_COUNT": 100,
     "RATE_LIMIT_PERIOD": 60,
-    "TELEGRAM_BOT_TOKEN": "111111:TEST_TOKEN_LOCAL"
+    "TELEGRAM_BOT_TOKEN": "111111:TEST_TOKEN_LOCAL",
+    "ENABLE_WEBHOOK": true,
+    "FRONTEND_URL": "https://mail.266666.best",
+    "ENABLE_MAIL_GZIP": true,
+    "ADDY_AUTH_TOKEN": "local-test-addy-token",
+    "SMTP_SSL_PORT": 2465,
+    "IMAP_SSL_PORT": 2993,
+    "SEND_RELAY_HOST": "127.0.0.1",
+    "SEND_RELAY_PORT": 2526,
+    "DKIM_SELECTOR": "smtp"
 }
