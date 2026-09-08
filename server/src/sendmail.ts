@@ -118,6 +118,7 @@ export function createMailer(cfg: any, dkim?: DkimInfo) {
                 connectionTimeout: 30_000,
                 socketTimeout: 60_000,
                 dkim: dkimOpt,
+                family: 4,
             });
             directTransports.set(host, t);
         }
