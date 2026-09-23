@@ -48,16 +48,3 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-
-      # Repo is public; image has no secrets (config.json is bind-mounted at runtime).
-      # Public GHCR lets the VPS pull without a packages-scoped token.
-      - name: Make GHCR package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/user/packages/container/cloudflare_temp_email/visibility" \
-            -f visibility=public
