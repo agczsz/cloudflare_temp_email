@@ -1,5 +1,5 @@
 # ---- stage 1: bundle the Node server (worker code + adapters) ----
-FROM node:20-bookworm-slim AS serverbuild
+FROM node:24-bookworm-slim AS serverbuild
 WORKDIR /build
 COPY worker/package.json ./worker/
 COPY worker/tsconfig.json ./worker/
@@ -14,7 +14,7 @@ RUN cd worker && npm install --omit=dev --no-audit --no-fund \
  && node build.mjs
 
 # ---- stage 2: build the frontend (same-origin API base) ----
-FROM node:20-bookworm-slim AS febuild
+FROM node:24-bookworm-slim AS febuild
 WORKDIR /build
 COPY frontend/package.json ./
 RUN npm install --no-audit --no-fund
@@ -23,7 +23,7 @@ RUN printf 'VITE_API_BASE=\nVITE_CF_WEB_ANALY_TOKEN=\nVITE_IS_TELEGRAM=false\n' 
  && npm run build
 
 # ---- stage 3: runtime ----
-FROM node:20-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 WORKDIR /app/server
 COPY server/package.json ./
 # better-sqlite3 has no prebuilt binary for this node patch, so it compiles
