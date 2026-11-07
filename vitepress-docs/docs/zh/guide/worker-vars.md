@@ -12,6 +12,9 @@
 | `ADMIN_PASSWORDS`          | JSON        | admin 控制台密码, 不配置则不允许访问控制台 | `["123", "456"]`                     |
 | `ENABLE_USER_CREATE_EMAIL` | 文本/JSON   | 是否允许用户创建邮箱, 不配置则不允许       | `true`                               |
 | `ENABLE_USER_DELETE_EMAIL` | 文本/JSON   | 是否允许用户删除邮件, 不配置则不允许       | `true`                               |
+| `ENABLE_MAIL_READ_STATUS` | 文本/JSON | 启用邮件已读/未读状态。启用前需要升级数据库 Schema | `true` |
+| `ENABLE_REDEEM_CODE` | 文本/JSON | 启用兑换码页面、用户兑换 API 和管理端兑换码功能；默认关闭 | `true` |
+| `REDEEM_CODE_URL` | 文本 | 获取兑换码的外部平台链接；不配置则不展示入口 | `https://example.com/redeem-codes` |
 
 > [!IMPORTANT] DOMAINS 与 DEFAULT_DOMAINS 必须先在 Cloudflare 配置好
 > 这里填写的所有域名（包括下文「邮箱相关变量」里的 `DEFAULT_DOMAINS`、`USER_ROLES.domains`、`RANDOM_SUBDOMAIN_DOMAINS` 等）必须是你**已经在 Cloudflare Email Routing 中启用并完成邮件 DNS 记录下发**的域名。Worker 部署完成后，还需要把该域名的 Catch-all 规则绑定到这个 Worker，否则邮件无法投递到 Worker。
@@ -22,7 +25,10 @@
 | 变量名                         | 类型      | 说明                                 | 示例             |
 | ------------------------------ | --------- | ------------------------------------ | ---------------- |
 | `PASSWORDS`                    | JSON      | 网站私有密码, 配置后需要密码才能访问 | `["123", "456"]` |
+| `ADMIN_API_IP_WHITELIST`       | JSON      | Admin API IP 白名单，配置后所有 `/admin/*` 请求仅允许列表中的 IP | `["203.0.113.10"]` |
 | `DISABLE_ADMIN_PASSWORD_CHECK` | 文本/JSON | 警告: 管理员控制台没有密码或用户检查 | `false`          |
+
+`ADMIN_API_IP_WHITELIST` 未配置或为空数组时不限制来源 IP。配置后，它会同时限制管理员密码和 Admin 用户令牌访问，只信任 Cloudflare 提供的 `CF-Connecting-IP`，缺少该请求头也会拒绝访问。
 
 ## 邮箱相关变量
 
@@ -32,6 +38,7 @@
 | `MIN_ADDRESS_LEN`                     | 数字      | `邮箱名称` 的最小长度                                                                                                             | `1`                                       |
 | `MAX_ADDRESS_LEN`                     | 数字      | `邮箱名称` 的最大长度                                                                                                             | `30`                                      |
 | `DISABLE_CUSTOM_ADDRESS_NAME`         | 文本/JSON | 禁用自定义邮箱地址名称，如果设置为 true，则用户无法输入自定义邮箱名称，将由后台自动生成                                           | `true`                                    |
+| `DISABLE_ADDRESS_UPDATED_AT` | 文本/JSON | 默认 `false`。设为 `true` 时停止单地址及用户批量的主动保活刷新，并禁用内置手动和定时不活跃地址清理。地址初始时间、密码操作及其他清理规则不变 | `true` |
 | `ADDRESS_CHECK_REGEX`                 | 文本      | `邮箱名称` 的正则表达式, 只用于检查                                                                                               | `^(?!.*admin).*`                          |
 | `ADDRESS_REGEX`                       | 文本      | `邮箱名称` 替换非法符号的正则表达式, 不在其中的符号将被替换，如果不设置，默认为 `[^a-z0-9]`, 需谨慎使用, 有些符号可能导致无法收件 | `[^a-z0-9]`                               |
 | `DEFAULT_DOMAINS`                     | JSON      | 默认用户可用的域名(未登录或未分配角色的用户)                                                                                      | `["awsl.uk", "dreamhunter2333.xyz"]`      |
@@ -89,7 +96,7 @@
 
 | 变量名                          | 类型      | 说明                                                                       | 示例                       |
 | ------------------------------- | --------- | -------------------------------------------------------------------------- | -------------------------- |
-| `BLACK_LIST`                    | 文本      | 黑名单，用于过滤发件人，逗号分隔                                           | `gov.cn,edu.cn`            |
+| `BLACK_LIST`                    | 文本      | 发件人黑名单，逗号分隔；对 SMTP 信封发件人与邮件头 From 中解析出的全部邮箱地址进行区分大小写的子串匹配，任意一个命中即拒收。地址解析独立于正文解析；后台发件人黑名单规则相同，不匹配显示名称 | `gov.cn,edu.cn`            |
 | `ENABLE_CHECK_JUNK_MAIL`        | 文本/JSON | 是否启用垃圾邮件检查，配合下列两个列表使用                                 | `false`                    |
 | `JUNK_MAIL_CHECK_LIST`          | JSON      | 存在性检查；已注册的失败/错误结果判定为垃圾邮件，`none` 和 SPF/DKIM `neutral` 按不存在处理 | `["spf", "dkim", "dmarc"]` |
 | `JUNK_MAIL_FORCE_PASS_LIST`     | JSON      | 强制通过检查；每一项都必须明确返回 `pass`，否则判定为垃圾邮件              | `["spf", "dkim", "dmarc"]` |
@@ -116,6 +123,7 @@
 | ---------------- | --------- | ------------------------------------- | ------------------ |
 | `ENABLE_WEBHOOK` | 文本/JSON | 是否启用 webhook                      | `true`             |
 | `FRONTEND_URL`   | 文本      | 前端地址，用于发送 webhook 的邮件 url | `https://xxxx.xxx` |
+| `BACKEND_URL` | 文本 | 后端公网根地址，用于附件签名链接；未配置时附件 URL 为空 | `https://temp-email-api.example.com` |
 
 > [!NOTE]
 > webhook 功能需要解析邮件，免费版 CPU 有限，可能会导致大邮件解析超时

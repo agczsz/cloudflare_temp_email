@@ -30,6 +30,7 @@ import MailWebhook from './admin/MailWebhook.vue';
 import WorkerConfig from './admin/WorkerConfig.vue';
 import IpBlacklistSettings from './admin/IpBlacklistSettings.vue';
 import AiExtractSettings from './admin/AiExtractSettings.vue';
+import RedeemCodes from './admin/RedeemCodes.vue';
 
 const {
   adminAuth, showAdminAuth, adminTab, loading,
@@ -106,7 +107,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="userSettings.fetched">
+  <div v-if="openSettings.fetched && userSettings.fetched">
     <n-modal v-model:show="showAdminPasswordModal" :closable="false" :closeOnEsc="false" :maskClosable="false"
       preset="dialog" :title="t('accessHeader')">
       <p>{{ t('accessTip') }}</p>
@@ -124,7 +125,7 @@ onMounted(async () => {
           <n-tab-pane name="database" :tab="t('database')">
             <DatabaseManager />
           </n-tab-pane>
-          <n-tab-pane name="account_settings" :tab="t('account_settings')">
+          <n-tab-pane name="account_settings" :tab="t('mailbox_settings')">
             <AccountSettings />
           </n-tab-pane>
           <n-tab-pane name="user_settings" :tab="t('user_settings')">
@@ -135,15 +136,15 @@ onMounted(async () => {
           </n-tab-pane>
         </n-tabs>
       </n-tab-pane>
-      <n-tab-pane name="account" :tab="t('account')">
+      <n-tab-pane name="account" :tab="t('mailbox_management')">
         <n-tabs key="account-tabs" type="bar" justify-content="center" animated>
-          <n-tab-pane name="account" :tab="t('account')">
+          <n-tab-pane name="account" :tab="t('mailbox_list')">
             <Account />
           </n-tab-pane>
-          <n-tab-pane name="account_create" :tab="t('account_create')">
+          <n-tab-pane name="account_create" :tab="t('mailbox_create')">
             <CreateAccount />
           </n-tab-pane>
-          <n-tab-pane name="account_settings" :tab="t('account_settings')">
+          <n-tab-pane name="account_settings" :tab="t('mailbox_settings')">
             <AccountSettings />
           </n-tab-pane>
           <n-tab-pane name="senderAccess" :tab="t('senderAccess')">
@@ -200,6 +201,9 @@ onMounted(async () => {
       </n-tab-pane>
       <n-tab-pane name="statistics" :tab="t('statistics')">
         <Statistics />
+      </n-tab-pane>
+      <n-tab-pane v-if="openSettings.enableRedeemCode" name="redeemCodes" :tab="t('redeemCodes')">
+        <RedeemCodes />
       </n-tab-pane>
       <n-tab-pane name="maintenance" :tab="t('maintenance')">
         <n-tabs key="maintenance-tabs" type="bar" justify-content="center" animated>

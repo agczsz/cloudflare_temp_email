@@ -17,16 +17,17 @@ migration; its SQLite data lives on in the bind-mounted `server/data/`).
 | RATE_LIMITER | `ratelimit.ts` — in-memory fixed window | per process |
 | Pages ASSETS | `assets.ts` — serves the built frontend | SPA fallback included |
 | Email Routing → email() | `smtp.ts` — SMTP server on :25 restricted to `DOMAINS` | feeds the original `email()` handler |
-| send_email binding | `sendmail.ts` — MX-routed direct delivery (nodemailer) or `SEND_RELAY_HOST` smarthost, DKIM signed | requires outbound :25 for direct mode |
-| — (new capability) | `submit.ts` — SMTPS submission on :465 (AUTH = address + password) | envelope-from locked to authenticated address |
-| — (new capability) | `imap.ts` — read-only IMAPS on :993 | minimal command set, gunzips raw_blob |
+| send_email binding | `sendmail.ts` — MX-routed direct delivery (nodemailer) or optional `SEND_RELAY_HOST` smarthost | requires outbound :25 for direct mode; DKIM is selected per sender domain |
+| — (new capability) | `submit.ts` — SMTPS submission on :465 (AUTH = address + password) | envelope-from locked to authenticated address; supports SNI certificates |
+| — (new capability) | `imap.ts` — read-only IMAPS on :993 | minimal command set, gunzips raw_blob; supports SNI certificates |
 | Cron trigger | daily `setInterval` → original `scheduled()` | cleanup settings from admin panel |
 
 Ports: HTTP API + frontend on **48321** (TLS/443 handled by Lucky reverse
-proxy), SMTP receive **25**, SMTPS submission **465**, IMAPS **993**
-(TLS: ZeroSSL cert at `/root/ssl/`, mounted read-only into the container).
-DMARC: upstream default `_dmarc` (p=none, Cloudflare reports).
-SPF: `v=spf1 mx ~all`; PTR: `108.165.12.111 → smtp.266666.best`.
+proxy), SMTP receive **25**, SMTPS submission **465**, IMAPS **993**. Configure
+an independent certificate/key pair for each SMTP/IMAP hostname with SNI (see
+`TLS_CERTIFICATES` below). HTTP TLS remains terminated by the reverse proxy.
+SPF/DKIM/DMARC must be configured for every sender domain; DKIM uses the same
+`DKIM_SELECTOR` but a separate private key per domain.
 
 ## Production layout (docker compose)
 
@@ -34,8 +35,8 @@ SPF: `v=spf1 mx ~all`; PTR: `108.165.12.111 → smtp.266666.best`.
 /opt/temp-email-docker/
   docker-compose.yml
   server/config.json      (bind mount, :ro)
-  server/data/            (bind mount: temp-email.db, dkim/, certs/)
-  /root/ssl -> /ssl       (TLS certs, :ro)
+  server/data/            (bind mount: temp-email.db, dkim/)
+  /etc/letsencrypt/       (each domain's TLS certificate/key, mounted read-only)
 ```
 
 ## Ops
@@ -48,15 +49,38 @@ docker compose restart
 ```
 
 Config is `server/config.json` — see `config.example.json`; every key can also
-be passed as a `TE_*` env var. SMTP/IMAP/SMTPS host name: `smtp.266666.best`
-(cert SAN `*.266666.best`); mail-client login = full temp address + its address
-password. Outbound: `SEND_RELAY_*` empty → direct-to-MX (port 25 must be open,
-DartNode unblocked 2026-08-30).
+be passed as a `TE_*` env var. SMTPS/IMAPS certificates are configured per SNI
+hostname with `TLS_CERTIFICATES`, for example:
+
+```json
+{
+  "TLS_CERTIFICATES": {
+    "smtp.example.com": {
+      "cert": "/etc/letsencrypt/live/example.com/fullchain.pem",
+      "key": "/etc/letsencrypt/live/example.com/privkey.pem"
+    },
+    "smtp.example.net": {
+      "cert": "/etc/letsencrypt/live/example.net/fullchain.pem",
+      "key": "/etc/letsencrypt/live/example.net/privkey.pem"
+    }
+  }
+}
+```
+
+Mount all referenced certificate directories read-only into the container.
+Older single-domain `TLS_CERT_PATH` / `TLS_KEY_PATH` remains supported as a
+fallback. Mail-client login = full temp address + its address password.
+Outbound: `SEND_RELAY_*` empty → direct-to-MX (outbound port 25 must be open);
+all sender domains in `DOMAINS`/`DEFAULT_DOMAINS` get a separate persistent DKIM
+key under `server/data/dkim/`. Publish each startup-logged TXT record at
+`<DKIM_SELECTOR>._domainkey.<sender-domain>`. The first configured domain
+reuses the existing `<selector>.private.pem` key to avoid breaking its DKIM DNS
+record; each additional domain gets its own selector-named key file.
 
 ## Local build & smoke test
 
 ```bash
-cd server && npm run build            # esbuild bundle (node20)
+cd server && npm run build            # esbuild bundle (Node.js)
 cd frontend && npm run build          # vue dist (same-origin API)
 cd server
 CONFIG_FILE=config.test.json node dist/server.js   # HTTP 48321, SMTP 2525, SMTPS 2465, IMAPS 2993

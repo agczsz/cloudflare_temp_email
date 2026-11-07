@@ -25,10 +25,9 @@ import { createAiBinding } from "./ai";
 import { createRateLimiter } from "./ratelimit";
 import { createAssets } from "./assets";
 import { startSmtpServer } from "./smtp";
-import { ensureDkimKey, createMailer } from "./sendmail";
+import { ensureDkimKeys, createMailer } from "./sendmail";
 import { startSubmitServer } from "./submit";
 import { startImapServer } from "./imap";
-import { execSync } from "node:child_process";
 import type { ServerConfig } from "./config";
 
 function migrate(db: D1Database, dbFile: string): void {
@@ -81,8 +80,11 @@ async function main() {
     // outbound sending: SEND_MAIL-compatible mailer over nodemailer
     // (direct-to-MX by default, or relay via SEND_RELAY_HOST); domain scoping
     // via SEND_MAIL_DOMAINS applies inside the worker
-    const dkim = ensureDkimKey(cfg);
-    const mailer = createMailer(cfg, dkim);
+    const dkimKeys = ensureDkimKeys({ ...cfg, DOMAINS: domains, DEFAULT_DOMAINS: defaultDomains });
+    for (const info of dkimKeys.values()) {
+        console.log(`[dkim] publish DNS record: ${info.dnsRecord}`);
+    }
+    const mailer = createMailer(cfg, dkimKeys);
     env.SEND_MAIL = mailer;
     env.SEND_MAIL_DOMAINS = allDomains;
 
@@ -104,13 +106,14 @@ async function main() {
     });
 
     // optional mail-client ports: SMTPS submission (:465) + IMAPS (:993)
-    const tls = resolveTls(cfg);
+    const tls = resolveTls(cfg, allDomains);
     if (Number(cfg.SMTP_SSL_PORT ?? 465) > 0 && tls) {
         startSubmitServer({
             port: Number(cfg.SMTP_SSL_PORT ?? 465),
             host: cfg.HOST || "0.0.0.0",
-            cert: tls.cert,
-            key: tls.key,
+            cert: tls.defaultCert,
+            key: tls.defaultKey,
+            sniOptions: tls.sniOptions,
             d1,
             domains: allDomains,
             transporter: mailer,
@@ -122,8 +125,9 @@ async function main() {
         startImapServer({
             port: Number(cfg.IMAP_SSL_PORT ?? 993),
             host: cfg.HOST || "0.0.0.0",
-            cert: tls.cert,
-            key: tls.key,
+            cert: tls.defaultCert,
+            key: tls.defaultKey,
+            sniOptions: tls.sniOptions,
             d1,
             domains: allDomains,
         });
@@ -148,33 +152,46 @@ async function main() {
     process.on("SIGTERM", shutdown);
 }
 
-function resolveTls(cfg: ServerConfig): { cert: string; key: string } | null {
-    const certFile = cfg.TLS_CERT_PATH;
-    const keyFile = cfg.TLS_KEY_PATH;
-    if (certFile && keyFile && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
-        return { cert: fs.readFileSync(certFile, "utf8"), key: fs.readFileSync(keyFile, "utf8") };
+type TlsPair = { cert: string; key: string };
+
+type TlsConfig = {
+    defaultCert: string;
+    defaultKey: string;
+    sniOptions: Map<string, TlsPair>;
+};
+
+function resolveTls(cfg: ServerConfig, domains: string[]): TlsConfig | null {
+    const configured = cfg.TLS_CERTIFICATES;
+    const certMap: Record<string, { cert?: string; key?: string }> =
+        typeof configured === "string" ? JSON.parse(configured) : configured || {};
+    const sniOptions = new Map<string, TlsPair>();
+
+    for (const [domain, pair] of Object.entries(certMap)) {
+        if (!pair.cert || !pair.key || !fs.existsSync(pair.cert) || !fs.existsSync(pair.key)) {
+            throw new Error(`TLS_CERTIFICATES entry for ${domain} must reference existing cert and key files`);
+        }
+        sniOptions.set(domain.toLowerCase(), {
+            cert: fs.readFileSync(pair.cert, "utf8"),
+            key: fs.readFileSync(pair.key, "utf8"),
+        });
     }
-    // fall back to a generated self-signed cert so the ports still work
-    const dir = path.join(path.dirname(cfg.DB_PATH), "certs");
-    const cFile = path.join(dir, "selfsigned.crt");
-    const kFile = path.join(dir, "selfsigned.key");
-    if (fs.existsSync(cFile) && fs.existsSync(kFile)) {
-        console.warn("[tls] using existing self-signed certificate (client-side warning expected)");
-        return { cert: fs.readFileSync(cFile, "utf8"), key: fs.readFileSync(kFile, "utf8") };
+
+    // Backward compatibility: a single certificate may still serve every domain.
+    if (!sniOptions.size && cfg.TLS_CERT_PATH && cfg.TLS_KEY_PATH &&
+        fs.existsSync(cfg.TLS_CERT_PATH) && fs.existsSync(cfg.TLS_KEY_PATH)) {
+        const pair = {
+            cert: fs.readFileSync(cfg.TLS_CERT_PATH, "utf8"),
+            key: fs.readFileSync(cfg.TLS_KEY_PATH, "utf8"),
+        };
+        for (const domain of domains) sniOptions.set(domain.toLowerCase(), pair);
     }
-    try {
-        fs.mkdirSync(dir, { recursive: true });
-        execSync(
-            `openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes ` +
-                `-subj "/CN=mail.266666.best" -keyout "${kFile}" -out "${cFile}"`,
-            { stdio: "ignore" },
-        );
-        console.warn("[tls] generated self-signed certificate (set TLS_CERT_PATH/TLS_KEY_PATH to use a real one)");
-        return { cert: fs.readFileSync(cFile, "utf8"), key: fs.readFileSync(kFile, "utf8") };
-    } catch (e) {
-        console.error("[tls] no certificate available, mail-client ports disabled:", e);
+
+    if (!sniOptions.size) {
+        console.warn("[tls] no TLS certificate configured; SMTPS and IMAPS disabled");
         return null;
     }
+    const first = sniOptions.values().next().value as TlsPair;
+    return { defaultCert: first.cert, defaultKey: first.key, sniOptions };
 }
 
 main().catch((e) => {

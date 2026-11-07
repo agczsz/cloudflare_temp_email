@@ -17,6 +17,7 @@ export function startSubmitServer(opts: {
     host: string;
     cert: string;
     key: string;
+    sniOptions?: Map<string, { cert: string; key: string }>;
     d1: any; // D1Database (better-sqlite3 backed)
     domains: string[];
     transporter: { sendMail: (opts: any) => Promise<any> };
@@ -27,6 +28,7 @@ export function startSubmitServer(opts: {
         secure: true,
         cert: opts.cert,
         key: opts.key,
+        sniOptions: opts.sniOptions,
         authOptional: false, // AUTH required before MAIL FROM
         hideSTARTTLS: true,
         banner: "temp-email submission ESMTP ready",

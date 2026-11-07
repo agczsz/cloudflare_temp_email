@@ -21,10 +21,22 @@ export function startImapServer(opts: {
     host: string;
     cert: string;
     key: string;
+    sniOptions?: Map<string, { cert: string; key: string }>;
     d1: any;
     domains: string[];
 }): tls.Server {
-    const server = tls.createServer({ cert: opts.cert, key: opts.key }, (sock) => runSession(sock, opts));
+    const credentials = new Map<string, tls.SecureContext>();
+    for (const [domain, pair] of opts.sniOptions || []) {
+        credentials.set(domain.toLowerCase(), tls.createSecureContext(pair));
+    }
+    const server = tls.createServer({
+        cert: opts.cert,
+        key: opts.key,
+        SNICallback(servername, callback) {
+            const context = credentials.get(servername.toLowerCase());
+            callback(context ? null : new Error(`No TLS certificate configured for ${servername}`), context);
+        },
+    }, (sock) => runSession(sock, opts));
     server.on("error", (e) => console.error("[imap] server error:", e));
     server.listen(opts.port, opts.host, () => {
         console.log(`[imap] IMAPS listening on ${opts.host}:${opts.port}`);

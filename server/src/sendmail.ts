@@ -8,86 +8,111 @@ import crypto from "node:crypto";
  * Outbound mail component: replaces the Cloudflare `send_email` binding.
  *
  * Delivery modes:
- *  - direct (default): per-recipient-domain MX routing (dns.resolveMx), each
- *    domain is delivered by a plain nodemailer SMTP client on port 25 with our
- *    EHLO name and DKIM signature. Requires the VPS provider to allow outbound
- *    port 25.
+ *  - direct (default): per-recipient-domain MX routing over port 25.
  *  - relay: set SEND_RELAY_HOST (+ optional SEND_RELAY_PORT/USER/PASS/
  *    SEND_RELAY_TLS_INSECURE) to hand everything to a smarthost instead.
  *
- * `SEND_MAIL.send(msg)` accepts both shapes upstream uses:
- *  - structured: {from, to, subject, html?, text?, cc?, bcc?, replyTo?,
- *    attachments?, headers?}
- *  - EmailMessage instance: {from, to, raw}
- * `mailer.sendMail(opts)` (same options) is shared with the 465 submission
- * server so client-submitted mail gets identical treatment.
+ * Each configured sender domain gets its own persistent DKIM key. Both the
+ * direct and relay paths choose the DKIM identity from the message's From.
  */
 
 export interface DkimInfo {
+    domain: string;
     privateKey: string;
     publicKey: string;
     dnsRecord: string;
 }
 
-export function ensureDkimKey(cfg: { DB_PATH: string; DKIM_SELECTOR?: string; DOMAINS: string[] }): DkimInfo {
+export type DkimInfoMap = Map<string, DkimInfo>;
+
+const configuredDomains = (domains: unknown): string[] => {
+    const values = Array.isArray(domains) ? domains : String(domains || "").split(",");
+    return [...new Set(values.map((value) => String(value).trim().toLowerCase()).filter(Boolean))];
+};
+
+export function ensureDkimKeys(cfg: { DB_PATH: string; DKIM_SELECTOR?: string; DOMAINS?: string[] | string; DEFAULT_DOMAINS?: string[] | string }): DkimInfoMap {
     const selector = cfg.DKIM_SELECTOR || "smtp";
-    const domain = (Array.isArray(cfg.DOMAINS) ? cfg.DOMAINS[0] : String(cfg.DOMAINS || "").split(",")[0]) || "localhost";
+    const domains = [...new Set([...configuredDomains(cfg.DOMAINS), ...configuredDomains(cfg.DEFAULT_DOMAINS)])];
     const dir = path.join(path.dirname(cfg.DB_PATH), "dkim");
     fs.mkdirSync(dir, { recursive: true });
-    const privFile = path.join(dir, `${selector}.private.pem`);
-    const pubFile = path.join(dir, `${selector}.public.pem`);
-    if (!fs.existsSync(privFile)) {
-        const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
-        fs.writeFileSync(privFile, privateKey.export({ type: "pkcs8", format: "pem" }).toString());
-        fs.writeFileSync(pubFile, publicKey.export({ type: "spki", format: "pem" }).toString());
-        console.log(`[dkim] generated key pair: ${privFile}`);
+
+    const result: DkimInfoMap = new Map();
+    for (const domain of domains) {
+        // Keep the existing key for the first configured domain, so upgrades
+        // retain its current DNS identity. Additional domains have separate keys.
+        const legacyFirstDomain = domain === domains[0];
+        const keyName = legacyFirstDomain ? selector : `${selector}.${domain}`;
+        const privFile = path.join(dir, `${keyName}.private.pem`);
+        const pubFile = path.join(dir, `${keyName}.public.pem`);
+        if (!fs.existsSync(privFile)) {
+            const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+            fs.writeFileSync(privFile, privateKey.export({ type: "pkcs8", format: "pem" }).toString(), { mode: 0o600 });
+            fs.writeFileSync(pubFile, publicKey.export({ type: "spki", format: "pem" }).toString(), { mode: 0o644 });
+            console.log(`[dkim] generated key pair for ${domain}: ${privFile}`);
+        }
+        const privateKey = fs.readFileSync(privFile, "utf8");
+        const publicKey = fs.readFileSync(pubFile, "utf8");
+        const dnsRecord = `${selector}._domainkey.${domain} TXT "v=DKIM1; k=rsa; p=${publicKey
+            .split("\n")
+            .filter((line) => line && !line.includes("-----"))
+            .join("")}"`;
+        result.set(domain, { domain, privateKey, publicKey, dnsRecord });
     }
-    const privateKey = fs.readFileSync(privFile, "utf8");
-    const publicKey = fs.readFileSync(pubFile, "utf8");
-    const dnsRecord = `${selector}._domainkey.${domain} TXT "v=DKIM1; k=rsa; p=${publicKey
-        .split("\n")
-        .filter((l) => l && !l.includes("-----"))
-        .join("")}"`;
-    return { privateKey, publicKey, dnsRecord };
+    return result;
 }
 
 const normalizeAddresses = (vals: any): string[] => {
     const out: string[] = [];
-    const walk = (v: any) => {
-        if (!v) return;
-        if (typeof v === "string") out.push(v);
-        else if (Array.isArray(v)) v.forEach(walk);
-        else if (typeof v === "object" && v.address) out.push(v.address);
+    const walk = (value: any) => {
+        if (!value) return;
+        if (typeof value === "string") out.push(value);
+        else if (Array.isArray(value)) value.forEach(walk);
+        else if (typeof value === "object" && value.address) out.push(value.address);
     };
     walk(vals);
     return out;
 };
 
-const domainOf = (addr: string): string => (addr.split("@")[1] || "").toLowerCase();
+const addressValue = (value: any): string => {
+    if (typeof value === "string") return value;
+    if (value && typeof value.address === "string") return value.address;
+    if (value && typeof value.email === "string") return value.email;
+    return "";
+};
 
-export function createMailer(cfg: any, dkim?: DkimInfo) {
-    const firstDomain = Array.isArray(cfg.DOMAINS) ? cfg.DOMAINS[0] : String(cfg.DOMAINS || "").split(",")[0];
-    const helloName = cfg.HELLO_NAME || `smtp.${firstDomain || "localhost"}`;
-    const dkimOpt = dkim
-        ? { domainName: firstDomain || "localhost", keySelector: cfg.DKIM_SELECTOR || "smtp", privateKey: dkim.privateKey }
-        : undefined;
+const domainOf = (addr: string): string => (addr.split("@").pop() || "").trim().toLowerCase();
 
-    // relay mode: one fixed smarthost
-    const relayTransport = cfg.SEND_RELAY_HOST
-        ? nodemailer.createTransport({
-              host: cfg.SEND_RELAY_HOST,
-              port: Number(cfg.SEND_RELAY_PORT || 587),
-              secure: Number(cfg.SEND_RELAY_PORT || 587) === 465,
-              tls: cfg.SEND_RELAY_TLS_INSECURE ? { rejectUnauthorized: false } : undefined,
-              auth: cfg.SEND_RELAY_USER
-                  ? { user: cfg.SEND_RELAY_USER, pass: cfg.SEND_RELAY_PASS || "" }
-                  : undefined,
-              dkim: dkimOpt,
-          })
-        : null;
+export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
+    const firstDomain = [...new Set([...configuredDomains(cfg.DOMAINS), ...configuredDomains(cfg.DEFAULT_DOMAINS)])][0] || "localhost";
+    const helloName = cfg.HELLO_NAME || `smtp.${firstDomain}`;
+    const selector = cfg.DKIM_SELECTOR || "smtp";
+    const dkimFor = (from: any) => {
+        const domain = domainOf(addressValue(from));
+        const info = dkimByDomain?.get(domain);
+        return info ? { domainName: info.domain, keySelector: selector, privateKey: info.privateKey } : undefined;
+    };
 
-    // direct mode: stream-transport to render structured messages to raw bytes,
-    // per-domain MX transports (created lazily, cached) for delivery
+    const relayTransports = new Map<string, nodemailer.Transporter>();
+    function relayTransportFor(from: any): nodemailer.Transporter {
+        const domain = domainOf(addressValue(from));
+        let transport = relayTransports.get(domain);
+        if (!transport) {
+            transport = nodemailer.createTransport({
+                host: cfg.SEND_RELAY_HOST,
+                port: Number(cfg.SEND_RELAY_PORT || 587),
+                secure: Number(cfg.SEND_RELAY_PORT || 587) === 465,
+                tls: cfg.SEND_RELAY_TLS_INSECURE ? { rejectUnauthorized: false } : undefined,
+                auth: cfg.SEND_RELAY_USER
+                    ? { user: cfg.SEND_RELAY_USER, pass: cfg.SEND_RELAY_PASS || "" }
+                    : undefined,
+                dkim: dkimFor(from),
+            });
+            relayTransports.set(domain, transport);
+        }
+        return transport;
+    }
+
+    // direct mode: render structured messages to raw bytes and cache MX transports
     const renderer = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: "normalize" });
     const mxCache = new Map<string, string>();
     const directTransports = new Map<string, nodemailer.Transporter>();
@@ -108,29 +133,32 @@ export function createMailer(cfg: any, dkim?: DkimInfo) {
         return host;
     }
 
-    function directTransportFor(host: string): nodemailer.Transporter {
-        let t = directTransports.get(host);
-        if (!t) {
-            t = nodemailer.createTransport({
+    function directTransportFor(host: string, from: any): nodemailer.Transporter {
+        const senderDomain = domainOf(addressValue(from));
+        const cacheKey = `${host}|${senderDomain}`;
+        let transport = directTransports.get(cacheKey);
+        if (!transport) {
+            transport = nodemailer.createTransport({
                 host,
                 port: 25,
                 name: helloName,
                 connectionTimeout: 30_000,
                 socketTimeout: 60_000,
-                dkim: dkimOpt,
                 family: 4,
+                dkim: dkimFor(from),
             });
-            directTransports.set(host, t);
+            directTransports.set(cacheKey, transport);
         }
-        return t;
+        return transport;
     }
 
     async function sendMail(opts: any): Promise<any> {
-        if (relayTransport) {
-            return relayTransport.sendMail(opts);
+        const from = opts?.from;
+        const dkim = dkimFor(from);
+        if (cfg.SEND_RELAY_HOST) {
+            return relayTransportFor(from).sendMail({ ...opts, dkim });
         }
         let raw: Buffer;
-        let from = opts?.from;
         let recipients: string[];
         if (opts?.raw !== undefined) {
             raw = Buffer.from(opts.raw);
@@ -147,27 +175,27 @@ export function createMailer(cfg: any, dkim?: DkimInfo) {
 
         const byDomain = new Map<string, string[]>();
         for (const rcpt of recipients) {
-            const dom = domainOf(rcpt);
-            if (!dom) throw new Error(`invalid recipient: ${rcpt}`);
-            byDomain.set(dom, [...(byDomain.get(dom) || []), rcpt]);
+            const recipientDomain = domainOf(rcpt);
+            if (!recipientDomain) throw new Error(`invalid recipient: ${rcpt}`);
+            byDomain.set(recipientDomain, [...(byDomain.get(recipientDomain) || []), rcpt]);
         }
 
         const failures: string[] = [];
-        for (const [dom, rcpts] of byDomain) {
+        for (const [recipientDomain, rcpts] of byDomain) {
             try {
-                const host = await pickMxHost(dom);
+                const host = await pickMxHost(recipientDomain);
                 if (!host) throw new Error("no MX/A host");
-                await directTransportFor(host).sendMail({ from, to: rcpts, raw });
-                console.log(`[direct] ${from} -> ${rcpts.join(",")} via ${host}`);
+                await directTransportFor(host, from).sendMail({ from, to: rcpts, raw });
+                console.log(`[direct] ${from?.address || from?.email || from} -> ${rcpts.join(",")} via ${host}`);
             } catch (e: any) {
-                console.error(`[direct] delivery to ${dom} failed: ${e.message}`);
-                failures.push(`${dom}: ${e.message}`);
+                console.error(`[direct] delivery to ${recipientDomain} failed: ${e.message}`);
+                failures.push(`${recipientDomain}: ${e.message}`);
             }
         }
         if (failures.length) {
             throw new Error(
                 `direct delivery failed (${failures.join("; ")})` +
-                    (cfg.SEND_RELAY_HOST ? "" : " — if outbound port 25 is blocked by the provider, configure SEND_RELAY_HOST"));
+                    " — if outbound port 25 is blocked by the provider, configure SEND_RELAY_HOST");
         }
         return { accepted: recipients };
     }
