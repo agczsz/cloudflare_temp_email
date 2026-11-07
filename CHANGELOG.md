@@ -6,22 +6,52 @@
   <a href="CHANGELOG_EN.md">English</a>
 </p>
 
-## v1.12.0(main)
+## v1.13.0(main)
 
 ### Features
 
+- feat: |Webhook| 新增邮件过滤规则，统一匹配条件/与/或/非四种节点，支持嵌套、字符串和原生正则匹配、可视化/JSON 编辑及规则检查；移除附件时保留全部原 From 头，缺失或无效时仍移除附件（issue #1155）
+- feat: |用户系统| 邮箱地址管理支持按地址关键字搜索已绑定邮箱，并保持分页结果准确（issue #1156）
+- feat: |AI 识别| 新增 `AI_EXTRACT_MODE`，可显式选择仅用本地规则（`local`）或优先用 Workers AI（`ai`）识别邮件；不填默认使用本地规则，邮件内容不会发送给 AI。**升级注意**：原先依赖 Workers AI 绑定自动启用 AI 识别的部署需设置 `AI_EXTRACT_MODE = "ai"`
+
+### Bug Fixes
+
+- fix: |收件| 黑名单同时检查 SMTP 信封发件人与邮件头 From 的全部邮箱地址，任意一个命中即拒收；独立解析地址，避免正文解析失败或多个发件地址导致漏拦截；地址解析异常时保留原有信封检查
+- fix: |AI 识别| `ai` 模式下地址未命中 AI 提取白名单时只跳过 Workers AI 调用，仍回退到本地规则提取验证码
+- fix: |Telegram| 当邮件没有纯文本正文（如纯 HTML 邮件）时回退到 HTML 转纯文本，避免 Telegram 通知显示“解析失败”
+
+### Improvements
+
+- feat: |AI 识别| 本地验证码规则增强：同时识别邮件标题，支持验证码在关键词前（如 `116352（动态验证码）`、`ABC123 is your code`）、`G-123456` 前缀、分组 / 空格 / 零宽字符 / 全角数字，新增俄西葡法德意土希伯来语等关键词；排除超过 8 位数字、小数金额、时间、URL 与邮箱地址中的数字、tracking / order / voucher code 及纯字母单词，收紧无关键词时的数字识别，并限制分析长度、消除正则回溯风险
+- feat: |Frontend| 统一桌面和移动端邮件摘要，突出主题、保留完整发件人并支持正文预览；阅读区使用主题配色按钮和附件数量徽标，更多菜单支持键盘操作，详情弹窗集中展示邮件信息
+
+## v1.12.0
+
+### Features
+
+- feat: |Webhook| 测试弹框支持随机邮件或指定邮件 ID，校验请求体及邮箱归属并适配现有前端语言及中英文错误提示
+- feat: |Webhook| 支持无需 S3 的多附件签名链接、纯 URL 与 Markdown 链接列表，签名兼容大小写，绑定本次入库邮件并保留下载文件名，关闭 Webhook 时禁止附件下载（issue #1142）
+- feat: |Worker| 新增 `DISABLE_ADDRESS_UPDATED_AT`，可关闭单地址及用户批量的主动保活刷新，并禁止内置手动及定时不活跃地址清理，降低 D1 写入量
+- feat: |Frontend| 新增 `VITE_DEFAULT_LANG` 构建变量，并支持通过 `index.html` 运行时配置覆盖前端设置
+- feat: |兑换码| 新增角色、发信额度及专属邮箱兑换与管理，完善并发保护和表单提示
+- feat: |邮件| 新增可选的已读/未读状态，支持点击邮件自动已读和手动切换状态
 - feat: |Admin| 数据库页面新增 D1 存储容量展示，支持选择并保存 Free 或 Workers Paid 套餐，对比当前数据库大小和容量上限
 - feat: |Admin| 创建邮箱页面支持一键生成随机邮箱名称（issue #1126）
+- feat: |Admin API| 新增 `ADMIN_API_IP_WHITELIST`，可按来源 IP 限制所有管理接口访问
 - feat: |用户系统| 用户中心新增发送邮件、与收件箱一致的可按绑定地址过滤的发件箱，以及地址管理凭证弹框；提供使用用户 JWT 的地址设置、发信权限申请、发信及发件箱 API
 
 ### Bug Fixes
 
+- fix: |邮箱鉴权| 修复旧邮箱凭证仍可访问 API、Telegram 越权解绑、重新绑定失效及外部发信保存凭证的问题，区分认证错误以准确提示站点及管理员登录，并将 E2E 测试接口移出生产代码
+- fix: |Frontend| 修复 AdSense 脚本包含不受支持的 `data-onload` 和 `data-onerror` 属性
+- fix: |Admin| 修复权限设置加载完成前短暂显示管理员密码输入框的问题
 - fix: |Admin| 修复切换一级标签页时二级标签页偶发无选中项、内容不显示及指示条偏移的问题
 - fix: |发信页面| 统一邮箱与名称字段顺序，并修复空正文输入框的光标与占位文字错位
 - fix: |用户发信| 用户地址发信接口支持角色无限额度
 
 ### Improvements
 
+- fix: |Frontend| 统一邮箱、邮箱地址、用户账号与管理后台的核心界面术语，并补齐附加语言缺失的邮件状态与远程图片文案（issue #1129）
 - feat: |发信页面| 优化用户和 Admin 发信页面的信息层级与响应式布局，增加正文格式工具栏、草稿状态、底部发送操作区及隔离的 HTML 预览
 
 ### Testing
@@ -234,7 +264,7 @@
 
 - test: |E2E| 新增 Docker 化端到端测试环境（Playwright + Mailpit），`cd e2e && npm test` 一条命令运行
 - test: |E2E| 覆盖 API 健康检查、地址生命周期、SMTP 发信、收件箱 UI、回复 HTML 邮件及 XSS 防护
-- test: |Worker| 新增 `/admin/test/seed_mail` 测试端点，仅 `E2E_TEST_MODE` 启用时可用
+- test: |Worker| 新增 `/admin/test/seed_mail` 测试端点
 
 ### Improvements
 

@@ -49,6 +49,12 @@ print(response.json())
 
 **Note**: Keyword filtering has been removed from the backend API. If you need to filter emails by content, please use the frontend filter input in the UI, which filters the currently displayed page.
 
+## Mail Read Status API
+
+Enable `ENABLE_MAIL_READ_STATUS` and upgrade the database first. Historical mail has `is_unread = NULL` and is treated as read; new mail has `is_unread = 1`. Opening unread mail from the web mail list marks it as read, and its detail view can switch the state manually. Refreshing the page does not mark it as read:
+
+- `PATCH /api/mails/:id/read`: set one mail belonging to the current address; use `{ "isUnread": true }` for unread or `{ "isUnread": false }` for read
+
 ## Admin Get Mail API
 
 Fetch a single mail by mail ID without a mailbox JWT. Authenticate with `x-admin-auth`.
@@ -170,8 +176,9 @@ Requests without pagination parameters return the default first page. Fetching a
 | --- | --- | --- |
 | `limit` | `20` | Page size, from 1 to 100 |
 | `offset` | `0` | Pagination offset |
+| `query` | Empty | Optional email address keyword filter for the current user's bound addresses; at most 100 characters, without `%` or `_` (invalid queries return 400) |
 
-The `results` array contains only the current page. The total is queried only when `offset=0`; later pages return `count: 0`, so clients should retain the total from the first page.
+The `results` array contains only the current page. The filtered total is queried only when `offset=0`; later pages return `count: 0`, so clients should retain the total from the first page.
 
 ```python
 import requests

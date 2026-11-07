@@ -47,5 +47,13 @@ export const remove_attachment_if_need = async (
             data: parsedEmail.text
         });
     }
-    parsedEmailContext.rawEmail = msg.asRaw();
+    const fromHeaders = (parsedEmail.headers || []).filter(header => header.key.toLowerCase() === 'from');
+    parsedEmailContext.rawEmail = msg.asRaw().replace(
+        /^From:.*\r?\n/m,
+        () => fromHeaders.map(header => `From: ${header.value}\r\n`).join('')
+    );
+    parsedEmailContext.parsedEmail = {
+        ...parsedEmail,
+        attachments: [],
+    };
 }

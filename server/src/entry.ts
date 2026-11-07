@@ -25,6 +25,9 @@ import { createAiBinding } from "./ai";
 import { createRateLimiter } from "./ratelimit";
 import { createAssets } from "./assets";
 import { startSmtpServer } from "./smtp";
+import { ensureDkimKeys, createMailer } from "./sendmail";
+import { startSubmitServer } from "./submit";
+import { startImapServer } from "./imap";
 import type { ServerConfig } from "./config";
 
 function migrate(db: D1Database, dbFile: string): void {
@@ -74,8 +77,16 @@ async function main() {
         RATE_LIMITER: createRateLimiter(cfg),
         ASSETS: createAssets(cfg.FRONTEND_DIST),
     };
-    // send_email binding does not exist on a plain VPS; the worker degrades gracefully
-    env.SEND_MAIL = undefined;
+    // outbound sending: SEND_MAIL-compatible mailer over nodemailer
+    // (direct-to-MX by default, or relay via SEND_RELAY_HOST); domain scoping
+    // via SEND_MAIL_DOMAINS applies inside the worker
+    const dkimKeys = ensureDkimKeys({ ...cfg, DOMAINS: domains, DEFAULT_DOMAINS: defaultDomains });
+    for (const info of dkimKeys.values()) {
+        console.log(`[dkim] publish DNS record: ${info.dnsRecord}`);
+    }
+    const mailer = createMailer(cfg, dkimKeys);
+    env.SEND_MAIL = mailer;
+    env.SEND_MAIL_DOMAINS = allDomains;
 
     // @hono/node-server calls fetch(request) without env — inject ours here.
     const nodeFetch = (request: Request) =>
@@ -94,6 +105,36 @@ async function main() {
         onMessage: (message) => worker.email(message as any, env, { waitUntil: () => { } } as any),
     });
 
+    // optional mail-client ports: SMTPS submission (:465) + IMAPS (:993)
+    const tls = resolveTls(cfg, allDomains);
+    if (Number(cfg.SMTP_SSL_PORT ?? 465) > 0 && tls) {
+        startSubmitServer({
+            port: Number(cfg.SMTP_SSL_PORT ?? 465),
+            host: cfg.HOST || "0.0.0.0",
+            cert: tls.defaultCert,
+            key: tls.defaultKey,
+            sniOptions: tls.sniOptions,
+            d1,
+            domains: allDomains,
+            transporter: mailer,
+        });
+    } else {
+        console.log("[submit] SMTPS disabled (SMTP_SSL_PORT=0 or no TLS cert)");
+    }
+    if (Number(cfg.IMAP_SSL_PORT ?? 993) > 0 && tls) {
+        startImapServer({
+            port: Number(cfg.IMAP_SSL_PORT ?? 993),
+            host: cfg.HOST || "0.0.0.0",
+            cert: tls.defaultCert,
+            key: tls.defaultKey,
+            sniOptions: tls.sniOptions,
+            d1,
+            domains: allDomains,
+        });
+    } else {
+        console.log("[imap] IMAPS disabled (IMAP_SSL_PORT=0 or no TLS cert)");
+    }
+
     // daily scheduled cleanup (same handler the Workers cron triggered)
     const timer = setInterval(() => {
         worker.scheduled({ cron: "0 0 * * *" } as any, env, { waitUntil: () => { } } as any)
@@ -109,6 +150,48 @@ async function main() {
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
+}
+
+type TlsPair = { cert: string; key: string };
+
+type TlsConfig = {
+    defaultCert: string;
+    defaultKey: string;
+    sniOptions: Map<string, TlsPair>;
+};
+
+function resolveTls(cfg: ServerConfig, domains: string[]): TlsConfig | null {
+    const configured = cfg.TLS_CERTIFICATES;
+    const certMap: Record<string, { cert?: string; key?: string }> =
+        typeof configured === "string" ? JSON.parse(configured) : configured || {};
+    const sniOptions = new Map<string, TlsPair>();
+
+    for (const [domain, pair] of Object.entries(certMap)) {
+        if (!pair.cert || !pair.key || !fs.existsSync(pair.cert) || !fs.existsSync(pair.key)) {
+            throw new Error(`TLS_CERTIFICATES entry for ${domain} must reference existing cert and key files`);
+        }
+        sniOptions.set(domain.toLowerCase(), {
+            cert: fs.readFileSync(pair.cert, "utf8"),
+            key: fs.readFileSync(pair.key, "utf8"),
+        });
+    }
+
+    // Backward compatibility: a single certificate may still serve every domain.
+    if (!sniOptions.size && cfg.TLS_CERT_PATH && cfg.TLS_KEY_PATH &&
+        fs.existsSync(cfg.TLS_CERT_PATH) && fs.existsSync(cfg.TLS_KEY_PATH)) {
+        const pair = {
+            cert: fs.readFileSync(cfg.TLS_CERT_PATH, "utf8"),
+            key: fs.readFileSync(cfg.TLS_KEY_PATH, "utf8"),
+        };
+        for (const domain of domains) sniOptions.set(domain.toLowerCase(), pair);
+    }
+
+    if (!sniOptions.size) {
+        console.warn("[tls] no TLS certificate configured; SMTPS and IMAPS disabled");
+        return null;
+    }
+    const first = sniOptions.values().next().value as TlsPair;
+    return { defaultCert: first.cert, defaultKey: first.key, sniOptions };
 }
 
 main().catch((e) => {

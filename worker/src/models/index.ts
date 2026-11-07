@@ -3,6 +3,7 @@ import type {
     CredentialDeviceType,
     Base64URLString,
 } from '@simplewebauthn/server';
+import type { FilterExpression } from '../utils/filter';
 
 export type Passkey = {
     id: Base64URLString;
@@ -26,6 +27,7 @@ export class AdminWebhookSettings {
 export type WebhookMail = {
     id: string;
     url?: string;
+    attachments?: { filename: string, mimeType: string, url: string }[];
     from: string;
     to: string;
     subject: string;
@@ -145,6 +147,7 @@ export class UserInfo {
 }
 
 export class WebhookSettings {
+    filter?: FilterExpression | null;
     enabled: boolean = false
     url: string = ''
     method: string = 'POST'
@@ -213,6 +216,7 @@ export type RawMailRow = {
     raw?: string;
     raw_blob?: unknown;
     metadata?: string;
+    is_unread?: number | null;
     created_at?: string;
 }
 

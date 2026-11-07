@@ -95,12 +95,24 @@ test.describe('User address pagination browser flow', () => {
 
       const selectedAddress = createdAddresses[20];
 
+      const addressSearch = page.getByTestId('user-address-search').locator('input');
+      await addressSearch.fill(selectedAddress.address);
+      await addressSearch.press('Enter');
+      await expect(pagination).toContainText(/Total:\s*1/);
+      await expect(addressRows).toHaveCount(1);
+      await expect(addressRows.first()).toContainText(selectedAddress.address);
+
+      await addressSearch.fill('');
+      await addressSearch.press('Enter');
+      await expect(pagination).toContainText(/Total:\s*21/);
+      await expect(addressRows).toHaveCount(20);
+
       const initialMailboxAddressesResponse = page.waitForResponse((response) => {
         const url = new URL(response.url());
         return url.pathname === '/user_api/bind_address'
           && url.searchParams.get('limit') === '100';
       });
-      await page.getByText('Mail Box', { exact: true }).click();
+      await page.getByText('Inbox', { exact: true }).click();
       const initialMailboxResponse = await initialMailboxAddressesResponse;
       expect(initialMailboxResponse.ok()).toBe(true);
       const mailboxAddressSelect = page.locator('.n-input-group .n-select').first();

@@ -24,6 +24,7 @@ export const useGlobalState = createGlobalState(
             disableAnonymousUserCreateEmail: false,
             disableCustomAddressName: false,
             enableUserDeleteEmail: false,
+            enableMailReadStatus: false,
             enableAutoReply: false,
             enableIndexAbout: false,
             /** @type {string[]} */
@@ -42,6 +43,8 @@ export const useGlobalState = createGlobalState(
             disableAdminPasswordCheck: false,
             enableAddressPassword: false,
             enableAgentEmailInfo: false,
+            enableRedeemCode: false,
+            redeemCodeUrl: '',
             smtpImapProxyConfig: {
                 smtp: {
                     host: '',
@@ -89,7 +92,7 @@ export const useGlobalState = createGlobalState(
         const adminSendBoxTabAddress = ref("");
         const mailboxSplitSize = useStorage('mailboxSplitSize', 0.25);
         const mailListView = useStorage('mailListView', false);
-        const mailListPreviewLineClamp = useStorage('mailListPreviewLineClamp', 2);
+        const mailListPreviewLineClamp = useStorage('mailListPreviewLineClamp', 1);
         const useIframeShowMail = useStorage('useIframeShowMail', false);
         const preferShowTextMail = useStorage('preferShowTextMail', false);
         const userJwt = useStorage('userJwt', '');

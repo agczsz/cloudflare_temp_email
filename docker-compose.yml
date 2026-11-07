@@ -18,4 +18,6 @@ services:
     volumes:
       - ./server/config.json:/app/server/config.json:ro
       - ./server/data:/app/server/data
+      # Mount every host directory referenced by TLS_CERTIFICATES as read-only.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     restart: unless-stopped
