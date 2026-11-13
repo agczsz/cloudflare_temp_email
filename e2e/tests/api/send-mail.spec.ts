@@ -40,13 +40,13 @@ test.describe('Send Mail via SMTP', () => {
     expect(mail.From.Address).toBe(address);
     expect(mail.To[0].Address).toBe('recipient@test.example.com');
 
-    // Balance should auto-initialize to 10 and then decrement to 9 after sending.
+    // Address balance remains unlimited after sending.
     const settingsRes = await request.get(`${WORKER_URL}/api/settings`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
     expect(settingsRes.ok()).toBe(true);
     const settings = await settingsRes.json();
-    expect(settings.send_balance).toBe(9);
+    expect(settings.send_balance).toBe(-1);
 
     // Cleanup
     await deleteAddress(request, jwt);

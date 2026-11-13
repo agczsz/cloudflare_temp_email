@@ -382,7 +382,10 @@ for (const [scenario, query] of [
         return api.fetch(`/api/settings${query}`);
       }, { userJwt, expiredAccessToken, mailboxJwt: address.jwt, query });
       expect(settings.address).toBe(address.address);
-      expect(settings.send_balance).toBe(10);
+      expect(settings.send_balance).toBe(-1);
+
+      const initialSender = await getAddressSender(request, address.address);
+      expect(initialSender.balance).toBe(10);
 
       const subject = `Mailbox refresh regression ${scenario} ${Date.now()}`;
       const listener = onMailpitMessage((mail) => mail.Subject === subject);
@@ -400,7 +403,7 @@ for (const [scenario, query] of [
       ]);
       expect(mail.From.Address).toBe(address.address);
       expect(sendCount).toBe(scenario === 'valid account' || scenario === 'missing expiry' ? 1 : 2);
-      expect((await getAddressSender(request, address.address)).balance).toBe(9);
+      expect((await getAddressSender(request, address.address)).balance).toBe(10);
       const sent = await request.get(`${WORKER_URL}/admin/sendbox`, {
         params: { address: address.address, limit: 10, offset: 0 },
       });

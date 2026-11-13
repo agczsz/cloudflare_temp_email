@@ -180,12 +180,15 @@ onMounted(async () => {
                 </div>
             </template>
             <template #header-extra>
-                <n-tag v-if="settings.send_balance > 0" type="success" round :bordered="false">
+                <n-tag v-if="settings.send_balance === -1" type="success" round :bordered="false">
+                    {{ t('unlimitedSend') }}
+                </n-tag>
+                <n-tag v-else-if="settings.send_balance > 0" type="success" round :bordered="false">
                     {{ t('send_balance') }} · {{ settings.send_balance }}
                 </n-tag>
             </template>
 
-            <div v-if="!settings.send_balance || settings.send_balance <= 0">
+            <div v-if="settings.send_balance !== -1 && (!settings.send_balance || settings.send_balance <= 0)">
                 <div class="access-state">
                     <div class="access-copy">
                         <h3>{{ t('balanceUnavailable') }}</h3>

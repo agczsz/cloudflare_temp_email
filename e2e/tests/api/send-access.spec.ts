@@ -10,20 +10,20 @@ import {
 } from '../../fixtures/test-helpers';
 
 test.describe('Send Access', () => {
-  test('request send access stays idempotent when default balance is auto-initialized', async ({ request }) => {
+  test('request send access preserves existing legacy balance rows', async ({ request }) => {
     const { jwt, address } = await createTestAddress(request, 'send-access');
 
     try {
       // First request — should succeed even if balance will also auto-init elsewhere.
       await requestSendAccess(request, jwt);
 
-      // Verify balance is set via settings
+      // Settings report the unlimited sentinel; legacy sender rows stay intact.
       const settingsRes = await request.get(`${WORKER_URL}/api/settings`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       expect(settingsRes.ok()).toBe(true);
       const settings = await settingsRes.json();
-      expect(settings.send_balance).toBe(10);
+      expect(settings.send_balance).toBe(-1);
 
       // Duplicate request should stay safe and idempotent.
       const dupRes = await request.post(`${WORKER_URL}/api/request_send_mail_access`, {
@@ -59,13 +59,13 @@ test.describe('Send Access', () => {
       });
       expect(settingsRes.ok()).toBe(true);
       const settings = await settingsRes.json();
-      expect(settings.send_balance).toBe(0);
+      expect(settings.send_balance).toBe(-1);
 
       const stillDisabled = await getAddressSender(request, address);
       expect(stillDisabled.balance).toBe(0);
       expect(stillDisabled.enabled).toBe(0);
 
-      // Attempting to send must also fail and must not auto-repair the row.
+      // An admin-disabled legacy balance row no longer blocks sending.
       const sendRes = await request.post(`${WORKER_URL}/api/send_mail`, {
         headers: { Authorization: `Bearer ${jwt}` },
         data: {
@@ -77,7 +77,7 @@ test.describe('Send Access', () => {
           is_html: false,
         },
       });
-      expect(sendRes.ok()).toBe(false);
+      expect(sendRes.ok()).toBe(true);
 
       const afterSend = await getAddressSender(request, address);
       expect(afterSend.balance).toBe(0);
@@ -87,7 +87,7 @@ test.describe('Send Access', () => {
     }
   });
 
-  test('send after admin deletion auto-initializes a fresh sender row', async ({ request }) => {
+  test('sending after admin deletes the legacy balance row does not recreate it', async ({ request }) => {
     const { jwt, address } = await createTestAddress(request, 'send-access-deleted');
 
     try {
@@ -109,16 +109,14 @@ test.describe('Send Access', () => {
       });
       expect(sendRes.ok()).toBe(true);
 
-      // A fresh row should exist with the default balance decremented by 1.
-      const recreated = await getAddressSender(request, address);
-      expect(recreated.enabled).toBe(1);
-      expect(recreated.balance).toBe(9);
+      // No address-balance row is recreated by sending.
+      await expect(getAddressSender(request, address)).rejects.toThrow();
     } finally {
       await deleteAddress(request, jwt);
     }
   });
 
-  test('request send access does not falsely succeed when quota is already exhausted', async ({ request }) => {
+  test('request send access remains idempotent for an exhausted legacy balance', async ({ request }) => {
     const { jwt, address } = await createTestAddress(request, 'sendexh');
 
     try {
@@ -135,9 +133,7 @@ test.describe('Send Access', () => {
       const retryRes = await request.post(`${WORKER_URL}/api/request_send_mail_access`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      expect(retryRes.status()).toBe(400);
-      const retryBody = await retryRes.text();
-      expect(retryBody).toContain('Already');
+      expect(retryRes.ok()).toBe(true);
     } finally {
       await deleteAddress(request, jwt);
     }

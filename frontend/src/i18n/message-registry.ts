@@ -1376,6 +1376,10 @@ export const MESSAGE_REGISTRY = {
       "en": "Current Address Send Balance",
       "zh": "当前地址剩余发信额度"
     },
+    "unlimitedSend": {
+      "en": "Unlimited sending",
+      "zh": "不限"
+    },
     "senderAddress": {
       "en": "Sender address",
       "zh": "发件邮箱"
