@@ -80,9 +80,31 @@ const addressValue = (value: any): string => {
     return "";
 };
 
+export const normalizeFrom = (from: any): any => {
+    if (!from || typeof from !== "object" || Array.isArray(from)) return from;
+    if (typeof from.address === "string") return from;
+    if (typeof from.email === "string") {
+        const { email, ...rest } = from;
+        return { ...rest, address: email };
+    }
+    return from;
+};
+
+export const renderStructuredMessage = async (renderer: nodemailer.Transporter, opts: any): Promise<Buffer> => {
+    const info: any = await new Promise((resolve, reject) => {
+        renderer.sendMail({ ...opts, from: normalizeFrom(opts?.from) }, (err: any, res: any) =>
+            err ? reject(err) : resolve(res));
+    });
+    return info.message;
+};
+
 const domainOf = (addr: string): string => (addr.split("@").pop() || "").trim().toLowerCase();
 
-export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
+export function createMailer(
+    cfg: any,
+    dkimByDomain?: DkimInfoMap,
+    transportFactory: typeof nodemailer.createTransport = nodemailer.createTransport,
+) {
     const firstDomain = [...new Set([...configuredDomains(cfg.DOMAINS), ...configuredDomains(cfg.DEFAULT_DOMAINS)])][0] || "localhost";
     const helloName = cfg.HELLO_NAME || `smtp.${firstDomain}`;
     const selector = cfg.DKIM_SELECTOR || "smtp";
@@ -97,7 +119,7 @@ export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
         const domain = domainOf(addressValue(from));
         let transport = relayTransports.get(domain);
         if (!transport) {
-            transport = nodemailer.createTransport({
+            transport = transportFactory({
                 host: cfg.SEND_RELAY_HOST,
                 port: Number(cfg.SEND_RELAY_PORT || 587),
                 secure: Number(cfg.SEND_RELAY_PORT || 587) === 465,
@@ -138,7 +160,7 @@ export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
         const cacheKey = `${host}|${senderDomain}`;
         let transport = directTransports.get(cacheKey);
         if (!transport) {
-            transport = nodemailer.createTransport({
+            transport = transportFactory({
                 host,
                 port: 25,
                 name: helloName,
@@ -156,7 +178,7 @@ export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
         const from = opts?.from;
         const dkim = dkimFor(from);
         if (cfg.SEND_RELAY_HOST) {
-            return relayTransportFor(from).sendMail({ ...opts, dkim });
+            return relayTransportFor(from).sendMail({ ...opts, from: normalizeFrom(from), dkim });
         }
         let raw: Buffer;
         let recipients: string[];
@@ -164,11 +186,7 @@ export function createMailer(cfg: any, dkimByDomain?: DkimInfoMap) {
             raw = Buffer.from(opts.raw);
             recipients = normalizeAddresses(opts?.to);
         } else {
-            const info: any = await new Promise((resolve, reject) => {
-                renderer.sendMail({ ...opts, dkim: undefined }, (err: any, res: any) =>
-                    err ? reject(err) : resolve(res));
-            });
-            raw = info.message;
+            raw = await renderStructuredMessage(renderer, { ...opts, dkim: undefined });
             recipients = normalizeAddresses([opts?.to, opts?.cc, opts?.bcc]);
         }
         if (!recipients.length) throw new Error("no recipients");

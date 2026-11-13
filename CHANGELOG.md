@@ -16,6 +16,7 @@
 
 ### Bug Fixes
 
+- fix: |VPS 发件| 将 Worker `{ email, name }` 发件人对象转换为 Nodemailer `{ address, name }`，修复机器人邮件原始 MIME 缺失有效 From 头；raw MIME 不做改写
 - fix: |收件| 黑名单同时检查 SMTP 信封发件人与邮件头 From 的全部邮箱地址，任意一个命中即拒收；独立解析地址，避免正文解析失败或多个发件地址导致漏拦截；地址解析异常时保留原有信封检查
 - fix: |AI 识别| `ai` 模式下地址未命中 AI 提取白名单时只跳过 Workers AI 调用，仍回退到本地规则提取验证码
 - fix: |Telegram| 当邮件没有纯文本正文（如纯 HTML 邮件）时回退到 HTML 转纯文本，避免 Telegram 通知显示“解析失败”
