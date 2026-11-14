@@ -102,6 +102,8 @@
 | `0927e86` | **sendbox 修复**：SMTP 提交服投递成功后用 postal-mime 解析并按上游 `v2` 格式写入 `sendbox` 表（web 发件箱数据源），与网页发件行为一致；`postal-mime` 补进 server 依赖（此前只装在 worker/，esbuild 对 server 侧动态导入解析不到会留成运行时导入） | `mails_api/send_mail_api.ts` 的 sendbox 写入格式（`INSERT INTO sendbox (address, raw) VALUES` + version v2 JSON） |
 | 本次 | **发件 + 邮件客户端端口**：`sendmail.ts`（SEND_MAIL→MX 路由直投器：`dns.resolveMx` 选 MX + nodemailer 纯客户端 25 端口投递 + DKIM 签名；配置 SEND_RELAY_* 可切 smarthost 中继。注：nodemailer ≥6 已移除内建 `direct:true`，故自实现 MX 路由）、`submit.ts`（465 隐式 SSL 提交，AUTH=地址+地址密码，from 锁定）、`imap.ts`（993 隐式 SSL 只读 IMAP，raw_blob 自动解压）；`build.mjs` 的 EmailMessage stub 携带 from/to/raw；DKIM DNS：`smtp._domainkey.266666.best` TXT（DMARC 沿用上游默认 `_dmarc` p=none + Cloudflare 报告地址）；新增依赖 nodemailer（锁定 ^6，v7+ 直投行为变化） | 无上游文件改动（纯新增组件 + `build.mjs`/`entry.ts`/`config.example.json`） |
 
+| 当前（2026-11-13） | **VPS 全局地址余额不限（有意区别于上游）**：只覆盖 `worker/src/mails_api/send_balance.ts` 中现有 `getSendBalanceState()` 的 no-limit 判定，使其所有地址返回 `balance: -1`、`needCheckBalance: false`；由上游原有 `send_mail_api.ts` 自然跳过地址余额拒绝与扣减。不清空/迁移已有 `address_sender` 行，不改请求额度 API、每日/月度限额实现；`dailyLimit: -1` 仍由上游配额模块处理。两个发信页面识别 `-1` 并显示“不限”。上游若改动余额状态函数/额度扣减，合并时需复核此最小覆盖点 | `worker/src/mails_api/send_balance.ts`、发信视图 |
+
 ## 七、已知与上游行为不一致的点（有意为之）
 
 - `SEND_MAIL` 绑定由 `sendmail.ts` 实现：直投模式依赖 **VPS 出站 25 端口放行**（DartNode 申请中；未放行时发件接口会报 "direct delivery failed ... configure SEND_RELAY_HOST"，配置任意 smarthost 即可绕开）；`HELLO_NAME` 可自定义 EHLO 名（默认 `smtp.<第一个域名>`）

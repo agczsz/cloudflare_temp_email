@@ -44,14 +44,8 @@ export const getSendBalanceState = async (
     needCheckBalance: boolean,
     balance: number | null
 }> => {
-    const user_role = c.get("userRolePayload");
-    const no_limit_roles = getSplitStringListValue(c.env.NO_LIMIT_SEND_ROLE);
-    const is_no_limit_send_balance = typeof user_role === "string"
-        && no_limit_roles.includes(user_role);
-    const noLimitSendAddressList = is_no_limit_send_balance ?
-        [] : await getJsonSetting(c, CONSTANTS.NO_LIMIT_SEND_ADDRESS_LIST_KEY) || [];
-    const isNoLimitSendAddress = !!noLimitSendAddressList?.includes(address);
-    const isNoLimitSender = is_no_limit_send_balance || isNoLimitSendAddress;
+    // VPS fork policy: preserve the upstream balance API, but disable address-level limits globally.
+    const isNoLimitSender = true;
     const needCheckBalance = !options?.isAdmin && !isNoLimitSender;
     if (needCheckBalance && options?.initializeDefaultBalance !== false) {
         await ensureDefaultSendBalance(c, address);
@@ -60,7 +54,7 @@ export const getSendBalanceState = async (
         return {
             isNoLimitSender: true,
             needCheckBalance: false,
-            balance: 99999,
+            balance: -1,
         };
     }
     return {

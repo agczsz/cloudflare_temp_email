@@ -16,6 +16,8 @@
 
 ### Bug Fixes
 
+- fix: |VPS Send Mail| Normalize Worker `{ email, name }` sender objects to Nodemailer `{ address, name }`, fixing missing valid From headers in bot-generated MIME; leave raw MIME unchanged
+- feat: |VPS Send Mail| Return unlimited (`-1`) address balance and remove balance-based send rejection/deduction; retain upstream daily/monthly quota enforcement
 - fix: |Mail| Check the SMTP envelope sender and every From email address against sender blacklists; parse addresses independently so body parsing failures or multiple From addresses cannot skip matching; preserve envelope checks on address parsing errors
 - fix: |AI Extract| In `ai` mode, an address allowlist miss now skips only the Workers AI call and still falls back to local verification-code extraction
 - fix: |Telegram| Fall back to HTML-to-text conversion when plain text body is empty, preventing "parse failed" messages in Telegram notifications

@@ -141,7 +141,7 @@ test.describe('User send mail API', () => {
       expect(addressSettingsRes.ok()).toBe(true);
       const addressSettings = await addressSettingsRes.json();
       expect(addressSettings.address).toBe(bound.address);
-      expect(addressSettings.send_balance).toBe(10);
+      expect(addressSettings.send_balance).toBe(-1);
 
       await deleteAllMailpitMessages(request);
       const subject = `User API send ${Date.now()}`;
@@ -203,7 +203,7 @@ test.describe('User send mail API', () => {
         `${WORKER_URL}/user_api/address/${bound.address_id}/settings`,
         { headers: { 'x-user-token': user.jwt } },
       );
-      expect((await updatedSettingsRes.json()).send_balance).toBe(9);
+      expect((await updatedSettingsRes.json()).send_balance).toBe(-1);
 
       const sender = await getAddressSender(request, bound.address);
       await updateAddressSender(request, {
@@ -218,14 +218,13 @@ test.describe('User send mail API', () => {
           headers: { 'x-user-token': user.jwt },
           data: {
             to_mail: 'recipient@test.example.com',
-            subject: 'No balance user send',
-            content: 'This message must not be sent',
+            subject: 'Legacy zero balance user send',
+            content: 'This message must send despite a zero legacy balance',
             is_html: false,
           },
         },
       );
-      expect(noBalanceRes.status()).toBe(400);
-      expect(await noBalanceRes.text()).toContain('No balance');
+      expect(noBalanceRes.ok()).toBe(true);
 
       const userSendboxRes = await request.get(
         `${WORKER_URL}/user_api/sendbox?limit=20&offset=0`,
@@ -233,16 +232,17 @@ test.describe('User send mail API', () => {
       );
       expect(userSendboxRes.ok()).toBe(true);
       const userSendbox = await userSendboxRes.json();
-      expect(userSendbox.count).toBe(1);
-      expect(userSendbox.results).toHaveLength(1);
-      expect(JSON.parse(userSendbox.results[0].raw).subject).toBe(subject);
+      expect(userSendbox.count).toBe(2);
+      expect(userSendbox.results).toHaveLength(2);
+      expect(userSendbox.results.map((item: { raw: string }) => JSON.parse(item.raw).subject))
+        .toContain(subject);
 
       const filteredSendboxRes = await request.get(
         `${WORKER_URL}/user_api/sendbox?limit=20&offset=0&address=${encodeURIComponent(bound.address)}`,
         { headers: { 'x-user-token': user.jwt } },
       );
       expect(filteredSendboxRes.ok()).toBe(true);
-      expect((await filteredSendboxRes.json()).count).toBe(1);
+      expect((await filteredSendboxRes.json()).count).toBe(2);
 
       const outsiderFilterRes = await request.get(
         `${WORKER_URL}/user_api/sendbox?limit=20&offset=0&address=${encodeURIComponent(outsider.address)}`,
@@ -339,7 +339,7 @@ test.describe('User send mail API', () => {
         { headers: userHeaders },
       );
       expect(addressSettingsRes.ok()).toBe(true);
-      expect((await addressSettingsRes.json()).send_balance).toBe(99999);
+      expect((await addressSettingsRes.json()).send_balance).toBe(-1);
 
       const sendRes = await request.post(
         `${WORKER_URL}/user_api/address/${address.address_id}/send_mail`,
@@ -383,7 +383,7 @@ test.describe('User send mail API', () => {
         { headers: mixedHeaders },
       );
       expect(otherSettingsRes.ok()).toBe(true);
-      expect((await otherSettingsRes.json()).send_balance).toBe(0);
+      expect((await otherSettingsRes.json()).send_balance).toBe(-1);
 
       const otherSendRes = await request.post(
         `${WORKER_URL}/user_api/address/${otherAddress.address_id}/send_mail`,
@@ -397,8 +397,7 @@ test.describe('User send mail API', () => {
           },
         },
       );
-      expect(otherSendRes.status()).toBe(400);
-      expect(await otherSendRes.text()).toContain('No balance');
+      expect(otherSendRes.ok()).toBe(true);
     } finally {
       await Promise.allSettled(addresses.map((address) => deleteAddress(request, address.jwt)));
       await Promise.allSettled(userIds.map((userId) => (
