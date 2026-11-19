@@ -100,6 +100,13 @@ database_id = "xxx" # D1 database ID
 # service = "auth-inbox"
 ```
 
+> [!NOTE]
+> To keep passwords out of `wrangler.toml`, `ADMIN_PASSWORDS` and `PASSWORDS` can also be set as secrets. A secret is always a string, so enter the list as a JSON array, e.g. `["my-password"]`. A bare `my-password` fails to parse: invalid `PASSWORDS` returns `500 / Invalid PASSWORDS configuration` instead of disabling password protection; a JSON parsing failure in `ADMIN_PASSWORDS` prevents admin-password login.
+>
+> ```bash
+> pnpm wrangler secret put ADMIN_PASSWORDS
+> ```
+
 ## Deploy Worker with Frontend (Optional)
 
 > [!NOTE]

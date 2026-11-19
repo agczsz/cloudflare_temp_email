@@ -356,6 +356,22 @@ export const MESSAGE_REGISTRY = {
     }
   },
   "components.AddressCredentialModal": {
+    "passwordOnlyTip": {
+      "en": "Sign in with the mailbox password to view a session token.",
+      "zh": "请使用邮箱密码登录后查看当前会话 Token。"
+    },
+    "sessionToken": {
+      "en": "Session Token",
+      "zh": "会话 Token"
+    },
+    "expiresAt": {
+      "en": "Expires at",
+      "zh": "到期时间"
+    },
+    "sessionTokenTip": {
+      "en": "This token expires at the time shown above. Sign in again after expiry. Auto-login links and QR codes use the same token and expire with it.",
+      "zh": "此 Token 在上述时间到期，过期后请重新登录。自动登录链接和二维码使用同一个 Token，并在同一时间失效。"
+    },
     "addressCredential": {
       "en": "Address Credential",
       "zh": "地址凭证"
@@ -391,6 +407,14 @@ export const MESSAGE_REGISTRY = {
     "autoLoginLink": {
       "en": "Auto-login link",
       "zh": "自动登录链接"
+    },
+    "autoLoginQrCode": {
+      "en": "Scan to open on mobile",
+      "zh": "手机扫码打开"
+    },
+    "autoLoginQrCodeTip": {
+      "en": "Anyone with this QR code can access this mailbox. Do not share it.",
+      "zh": "任何获取此二维码的人都可以访问该邮箱，请勿分享。"
     },
     "copyFailed": {
       "en": "Copy failed",
@@ -1094,6 +1118,10 @@ export const MESSAGE_REGISTRY = {
     }
   },
   "views.user.AddressManagement": {
+    "unbindPasswordTip": {
+      "en": "Save the mailbox password before unlinking so you can log in again.",
+      "zh": "解绑前请保存邮箱密码，以便之后重新登录。"
+    },
     "actions": {
       "en": "Actions",
       "zh": "操作"
@@ -1219,6 +1247,10 @@ export const MESSAGE_REGISTRY = {
     "showAddressCredential": {
       "en": "Credentials & Connection Methods",
       "zh": "地址凭证与连接方式"
+    },
+    "showSessionToken": {
+      "en": "View Session Token",
+      "zh": "查看当前会话 Token"
     },
     "success": {
       "en": "Success",
@@ -1910,28 +1942,38 @@ export const MESSAGE_REGISTRY = {
     }
   },
   "views.admin.Statistics": {
-    "activeAddressCount30days": {
-      "en": "30 days Active Address Count",
-      "zh": "30天活跃邮箱地址总数"
-    },
-    "activeAddressCount7days": {
-      "en": "7 days Active Address Count",
-      "zh": "7天活跃邮箱地址总数"
-    },
+    "refresh": { "en": "Refresh", "zh": "刷新" },
+    "dateRange": { "en": "Time range", "zh": "时间范围" },
+    "days7": { "en": "Last 7 days", "zh": "近 7 天" },
+    "days30": { "en": "Last 30 days", "zh": "近 30 天" },
+    "today": { "en": "Today", "zh": "今天" },
+    "rangeLimit": { "en": "Select a range of up to 30 days.", "zh": "单次最多查看 30 天，请缩小日期范围。" },
+    "rangeHelp": { "en": "Up to 30 days", "zh": "最多 30 天" },
+    "applyRange": { "en": "Apply", "zh": "应用" },
+    "received": { "en": "Incoming mail", "zh": "接收邮件数" },
+    "newAddresses": { "en": "Mailboxes created", "zh": "邮箱创建数" },
+    "sent": { "en": "Outgoing mail", "zh": "发送邮件数" },
+    "newUsers": { "en": "User registrations", "zh": "用户注册数" },
+    "chartLabel": { "en": "{title}: {count}", "zh": "{title}：{count}" },
+    "loadError": { "en": "Could not load statistics. Try refreshing.", "zh": "统计加载失败，请刷新重试。" },
+    "activeAddressCount7days": { "en": "Active mailboxes (7 days)", "zh": "7 天活跃邮箱" },
+    "activeAddressCount30days": { "en": "Active mailboxes (30 days)", "zh": "30 天活跃邮箱" },
+    "activeUserCount7days": { "en": "Active users (7 days)", "zh": "7 天活跃用户" },
+    "activeUserCount30days": { "en": "Active users (30 days)", "zh": "30 天活跃用户" },
     "addressCount": {
-      "en": "Address Count",
-      "zh": "邮箱地址总数"
+      "en": "Total mailboxes",
+      "zh": "邮箱总数"
     },
     "mailCount": {
-      "en": "Mail Count",
+      "en": "Total mail",
       "zh": "邮件总数"
     },
     "sendMailCount": {
-      "en": "Send Mail Count",
-      "zh": "发送邮件总数"
+      "en": "Total sent",
+      "zh": "发件总数"
     },
     "userCount": {
-      "en": "User Count",
+      "en": "Total users",
       "zh": "用户总数"
     }
   },
@@ -1998,6 +2040,10 @@ export const MESSAGE_REGISTRY = {
     }
   },
   "views.index.LocalAddress": {
+    "loginMethod": {
+      "en": "Login Method",
+      "zh": "登录方式"
+    },
     "actions": {
       "en": "Actions",
       "zh": "操作"
@@ -2377,7 +2423,84 @@ export const MESSAGE_REGISTRY = {
       "zh": "Telegram 白名单(手动输入 Chat ID, 回车增加)"
     }
   },
+  "views.admin.BatchExportModal": {
+    "title": {
+      "en": "Export login links",
+      "zh": "导出登录链接"
+    },
+    "spreadsheet": {
+      "en": "Spreadsheet-safe CSV (Excel, Google Sheets)",
+      "zh": "电子表格安全 CSV（Excel、Google 表格）"
+    },
+    "spreadsheetTip": {
+      "en": "Cells that start with =, +, -, {'@'}, tab or carriage return get a leading ' so spreadsheets keep them as text. Programs reading this file will see the ' as part of the value.",
+      "zh": "以 =、+、-、{'@'}、制表符或回车开头的单元格会加上前导 '，使表格软件将其作为文本显示。程序读取此文件时，' 会成为值的一部分。"
+    },
+    "raw": {
+      "en": "Lossless CSV (scripts and programs)",
+      "zh": "无损 CSV（脚本和程序）"
+    },
+    "rawTip": {
+      "en": "Standard CSV with the original addresses and login links unchanged. Do not open it in a spreadsheet if an address starts with =, +, - or {'@'}.",
+      "zh": "标准 CSV，原样保留地址和登录链接。如果地址以 =、+、- 或 {'@'} 开头，请勿用表格软件打开。"
+    },
+    "download": {
+      "en": "Download CSV",
+      "zh": "下载 CSV"
+    },
+    "close": {
+      "en": "Close",
+      "zh": "关闭"
+    }
+  },
+  "views.admin.BatchCreate": {
+    "randomNameTip": { "en": "Mailbox names are generated randomly.", "zh": "邮箱名称将随机生成。" },
+    "batchCount": {
+      "en": "Batch count (1–100)",
+      "zh": "批量数量（1–100）"
+    },
+    "createBatch": {
+      "en": "Create batch",
+      "zh": "批量创建"
+    },
+    "batchValidation": {
+      "en": "Choose a domain and an integer count from 1 to 100. Custom subdomains cannot be empty.",
+      "zh": "请选择域名并输入 1–100 的整数数量，自定义子域名不能为空。"
+    },
+    "batchNameError": {
+      "en": "The configured address normalization cannot produce a valid random name.",
+      "zh": "配置的地址规范化规则无法生成有效的随机名称。"
+    },
+    "batchProgress": {
+      "en": "Completed: {completed} / {requested}",
+      "zh": "已完成：{completed} / {requested}"
+    },
+    "batchStopped": {
+      "en": "Batch stopped. Interrupted requests may have created a mailbox with an unknown outcome. Known successes can still be exported.",
+      "zh": "批量创建已停止。中断的请求可能已创建邮箱，结果未知。仍可导出已确认成功的记录。"
+    },
+    "exportCsv": {
+      "en": "Export CSV",
+      "zh": "导出 CSV"
+    },
+    "clearResults": {
+      "en": "Clear results",
+      "zh": "清空结果"
+    },
+    "batchTotal": {
+      "en": "Saved results: {count}",
+      "zh": "已保存结果：{count}"
+    },
+    "batchSecurity": {
+      "en": "Anyone holding these links can access the mailboxes. Private deployments still require site-access credentials. Results stay in memory until you leave this view or clear them.",
+      "zh": "任何持有这些链接的人都可访问邮箱。私有部署仍需要站点访问凭据。结果仅保存在内存中，离开此页面或清空后即消失。"
+    },
+  },
   "views.admin.CreateAccount": {
+    "creationMode": { "en": "Creation mode", "zh": "创建方式" },
+    "singleMode": { "en": "Single creation", "zh": "单个创建" },
+    "batchMode": { "en": "Batch creation", "zh": "批量创建" },
+    "domain": { "en": "Domain", "zh": "域名" },
     "address": {
       "en": "Email Address",
       "zh": "邮箱地址"
@@ -2642,6 +2765,10 @@ export const MESSAGE_REGISTRY = {
       "en": "Only affects /api/new_address and /admin/new_address domain validation. Example: when enabled, foo.example.com can match configured base domain example.com.",
       "zh": "仅影响 /api/new_address 和 /admin/new_address 的域名校验。例如开启后，foo.example.com 可以匹配已配置的基础域名 example.com。"
     },
+    "delete_original": {
+      "en": "Delete original after forwarding",
+      "zh": "转发成功后删除原邮件"
+    },
     "delete_rule": {
       "en": "Delete",
       "zh": "删除"
@@ -2758,9 +2885,17 @@ export const MESSAGE_REGISTRY = {
       "en": "e.g. gmail.com",
       "zh": "例如: gmail.com"
     },
+    "recipient_patterns": {
+      "en": "Recipient Address Regex (Optional)",
+      "zh": "收件人地址正则（可选）"
+    },
+    "recipient_patterns_placeholder": {
+      "en": "e.g. admin",
+      "zh": "例如: admin"
+    },
     "source_patterns_tip": {
-      "en": "Domain list filters by recipient address, source regex filters by sender address. Both conditions must match for forwarding (AND logic). Leave either empty to skip that filter.",
-      "zh": "域名列表按收件地址过滤，来源正则按发件地址过滤，两者均为可选。同时配置时需同时满足（AND 逻辑），留空则跳过该条件。"
+      "en": "Domain, sender regex and recipient regex filters must all match. Empty filters are ignored. Regex matching is case-insensitive and uses the full envelope address, not the message headers.",
+      "zh": "域名、来源正则和收件人正则需同时满足，留空则跳过该条件。正则不区分大小写，匹配完整的信封地址，而非邮件头。"
     },
     "successTip": {
       "en": "Save Success",

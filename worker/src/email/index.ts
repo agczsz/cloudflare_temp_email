@@ -11,10 +11,13 @@ import { extractEmailInfo } from "./ai_extract";
 import { forwardEmail } from "./forward";
 import { EmailRuleSettings } from "../models";
 import { CONSTANTS } from "../constants";
-import { storeRawMail } from "./storage";
+import { deleteRawMail, storeRawMail } from "./storage";
 
 
-async function email(message: ForwardableEmailMessage, env: Bindings, ctx: ExecutionContext) {
+async function receiveEmail(
+    message: ForwardableEmailMessage, env: Bindings, ctx: ExecutionContext,
+    allowForward: boolean = true, onStored?: () => void
+): Promise<void> {
     const toAddress = normalizeAddressDomain(message.to);
     if (await isBlocked(message, env)) {
         message.setReject("Reject from address");
@@ -78,18 +81,22 @@ async function email(message: ForwardableEmailMessage, env: Bindings, ctx: Execu
         console.error("save email error", error);
         return undefined;
     });
+    if (storedMailId) onStored?.();
 
     // forward email
-    await forwardEmail(message, env);
+    const { deleteOriginal: deleteAfterForward } = allowForward
+        ? await forwardEmail(message, env, rawEmail,
+            (targetMessage, onTargetStored) => receiveEmail(targetMessage, env, ctx, false, onTargetStored))
+        : { deleteOriginal: false };
 
     // AI email content extraction
-    const aiExtractResult = await extractEmailInfo(parsedEmailContext, env, message_id, toAddress);
+    const aiExtractResult = await extractEmailInfo(parsedEmailContext, env, storedMailId, toAddress);
 
     // send email to telegram
     try {
         await sendMailToTelegram(
             { env: env } as Context<HonoCustomType>,
-            toAddress, parsedEmailContext, message_id, aiExtractResult);
+            toAddress, parsedEmailContext, storedMailId, aiExtractResult);
     } catch (error) {
         console.error("send mail to telegram error", error);
     }
@@ -120,7 +127,14 @@ async function email(message: ForwardableEmailMessage, env: Bindings, ctx: Execu
     }
 
     // auto reply email
-    await auto_reply(message, env, toAddress);
+    if (allowForward) await auto_reply(message, env, toAddress);
+
+    const shouldDeleteMail = deleteAfterForward;
+    if (shouldDeleteMail && storedMailId) await deleteRawMail(env, storedMailId, toAddress);
+}
+
+async function email(message: ForwardableEmailMessage, env: Bindings, ctx: ExecutionContext): Promise<void> {
+    await receiveEmail(message, env, ctx);
 }
 
 export { email }

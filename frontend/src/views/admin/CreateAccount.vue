@@ -5,6 +5,7 @@ import { useScopedI18n } from '@/i18n/app'
 import { useGlobalState } from '../../store'
 import { api } from '../../api'
 import AddressCredentialModal from '../../components/AddressCredentialModal.vue'
+import BatchCreate from './BatchCreate.vue'
 
 const {
     loading, openSettings,
@@ -22,6 +23,19 @@ const showReultModal = ref(false)
 const result = ref("")
 const addressPassword = ref("")
 const createdAddress = ref("")
+
+const busy = ref(false)
+const creationMode = ref('single')
+
+const invalidDomain = computed(() => !emailDomain.value
+    || (subdomainMode.value === "custom" && !customSubdomain.value.trim()))
+const batchOptions = computed(() => ({
+    enablePrefix: enablePrefix.value,
+    enableRandomSubdomain: subdomainMode.value === 'random',
+    domain: subdomainMode.value === 'custom'
+        ? `${customSubdomain.value.trim()}.${emailDomain.value}`
+        : emailDomain.value,
+}))
 
 const addressRegex = computed(() => {
     try {
@@ -42,10 +56,10 @@ const generateName = async () => {
         const { faker } = await import('https://esm.sh/@faker-js/faker');
         emailName.value = faker.internet.email()
             .split('@')[0]
+            .toLowerCase()
             .replace(/\s+/g, '.')
             .replace(/\.{2,}/g, '.')
-            .replace(addressRegex.value, '')
-            .toLowerCase();
+            .replace(addressRegex.value, '');
         // support maxAddressLen
         if (emailName.value.length > openSettings.value.maxAddressLen) {
             emailName.value = emailName.value.slice(0, openSettings.value.maxAddressLen);
@@ -71,10 +85,12 @@ watch(canUseRandomSubdomain, (enabled) => {
 })
 
 const newEmail = async () => {
-    if (!emailName.value || !emailDomain.value) {
+    if (busy.value || generateNameLoading.value) return
+    if (!emailName.value || invalidDomain.value) {
         message.error(t('fillInAllFields'))
         return
     }
+    busy.value = true
     try {
         const domain = subdomainMode.value === "custom"
             ? `${customSubdomain.value.trim()}.${emailDomain.value}`
@@ -95,6 +111,8 @@ const newEmail = async () => {
         showReultModal.value = true
     } catch (error) {
         message.error(error.message || "error");
+    } finally {
+        busy.value = false
     }
 }
 
@@ -111,22 +129,30 @@ onMounted(async () => {
         <AddressCredentialModal v-model:show="showReultModal" :address="createdAddress" :jwt="result"
             :address-password="addressPassword" />
         <n-card :bordered="false" embedded style="max-width: 600px;">
-            <n-form-item-row v-if="openSettings.prefix" :label="t('enablePrefix')">
-                <n-switch v-model:value="enablePrefix" :round="false" />
+            <n-form-item-row :label="t('creationMode')">
+                <n-radio-group v-model:value="creationMode" name="admin-creation-mode" :disabled="busy || generateNameLoading">
+                    <n-space>
+                        <n-radio value="single">{{ t('singleMode') }}</n-radio>
+                        <n-radio value="batch">{{ t('batchMode') }}</n-radio>
+                    </n-space>
+                </n-radio-group>
             </n-form-item-row>
-            <n-form-item-row :label="t('address')">
+            <n-form-item-row v-if="openSettings.prefix" :label="t('enablePrefix')">
+                <n-switch :disabled="busy" v-model:value="enablePrefix" :round="false" />
+            </n-form-item-row>
+            <n-form-item-row :label="t(creationMode === 'single' ? 'address' : 'domain')">
                 <n-spin :show="generateNameLoading" style="width: 100%;">
                     <div>
-                        <n-button @click="generateName" style="margin-bottom: 10px;">
+                        <n-button v-if="creationMode === 'single'" :disabled="busy" @click="generateName" style="margin-bottom: 10px;">
                             {{ t('generateName') }}
                         </n-button>
                         <n-input-group>
-                            <n-input-group-label v-if="enablePrefix && openSettings.prefix">
+                            <n-input-group-label v-if="creationMode === 'single' && enablePrefix && openSettings.prefix">
                                 {{ openSettings.prefix }}
                             </n-input-group-label>
-                            <n-input v-model:value="emailName" />
-                            <n-input-group-label>@</n-input-group-label>
-                            <n-select v-model:value="emailDomain" :consistent-menu-width="false"
+                            <n-input v-if="creationMode === 'single'" :disabled="busy" v-model:value="emailName" />
+                            <n-input-group-label v-if="creationMode === 'single'">@</n-input-group-label>
+                            <n-select :disabled="busy" v-model:value="emailDomain" :consistent-menu-width="false"
                                 :options="openSettings.domains" />
                         </n-input-group>
                     </div>
@@ -134,7 +160,7 @@ onMounted(async () => {
             </n-form-item-row>
             <n-form-item-row v-if="canUseRandomSubdomain">
                 <div style="width: 100%;">
-                    <n-radio-group v-model:value="subdomainMode">
+                    <n-radio-group :disabled="busy" v-model:value="subdomainMode">
                         <n-space vertical>
                             <n-radio value="normal">{{ t('normalSubdomain') }}</n-radio>
                             <n-radio value="random">{{ t('enableRandomSubdomain') }}</n-radio>
@@ -145,15 +171,17 @@ onMounted(async () => {
                         {{ t('randomSubdomainTip') }}
                     </p>
                     <n-input-group v-if="subdomainMode === 'custom'" style="margin-top: 8px;">
-                        <n-input v-model:value="customSubdomain" />
+                        <n-input :disabled="busy" v-model:value="customSubdomain" />
                         <n-input-group-label>.{{ emailDomain }}</n-input-group-label>
                     </n-input-group>
                 </div>
             </n-form-item-row>
-            <n-button @click="newEmail" type="primary" block :loading="loading"
-                :disabled="subdomainMode === 'custom' && !customSubdomain.trim()">
+            <n-button v-if="creationMode === 'single'" @click="newEmail" type="primary" block :loading="loading"
+                :disabled="busy || generateNameLoading || invalidDomain">
                 {{ t('createEmailAddress') }}
             </n-button>
+            <BatchCreate v-show="creationMode === 'batch'" :options="batchOptions" :address-regex="addressRegex"
+                :disabled="invalidDomain || generateNameLoading || creationMode !== 'batch'" @busy="busy = $event" />
         </n-card>
     </div>
 </template>

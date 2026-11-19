@@ -36,6 +36,7 @@ api.get('/open_api/settings', async (c) => {
         "domainLabels": utils.getStringArray(c.env.DOMAIN_LABELS),
         "needAuth": needAuth,
         "adminContact": c.env.ADMIN_CONTACT,
+        "disableUserSystem": utils.getBooleanValue(c.env.DISABLE_USER_SYSTEM),
         "enableUserCreateEmail": utils.getBooleanValue(c.env.ENABLE_USER_CREATE_EMAIL),
         "disableAnonymousUserCreateEmail": utils.getBooleanValue(c.env.DISABLE_ANONYMOUS_USER_CREATE_EMAIL),
         "disableCustomAddressName": utils.getBooleanValue(c.env.DISABLE_CUSTOM_ADDRESS_NAME),
@@ -53,6 +54,8 @@ api.get('/open_api/settings', async (c) => {
         "showGithubForUser": !utils.getBooleanValue(c.env.DISABLE_SHOW_GITHUB_FOR_USER),
         "disableAdminPasswordCheck": utils.getBooleanValue(c.env.DISABLE_ADMIN_PASSWORD_CHECK),
         "enableAddressPassword": utils.getBooleanValue(c.env.ENABLE_ADDRESS_PASSWORD),
+        "addressPasswordLoginOnly": utils.getBooleanValue(c.env.ENABLE_ADDRESS_PASSWORD)
+            && utils.getBooleanValue(c.env.ADDRESS_PASSWORD_LOGIN_ONLY),
         "enableAgentEmailInfo": utils.getBooleanValue(c.env.ENABLE_AGENT_EMAIL_INFO),
         "enableRedeemCode": utils.getBooleanValue(c.env.ENABLE_REDEEM_CODE),
         "redeemCodeUrl": utils.getStringValue(c.env.REDEEM_CODE_URL),

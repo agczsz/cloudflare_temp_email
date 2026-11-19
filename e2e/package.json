@@ -3,19 +3,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:unit": "node --experimental-strip-types --test tests/unit/*.test.mjs",
-    "test": "docker compose up --build --abort-on-container-exit --exit-code-from e2e-runner",
-    "test:down": "docker compose down -v"
+    "test:unit": "node --experimental-strip-types --test unit/tests/*.test.mjs",
+    "test": "docker compose --profile \"*\" build && docker compose --profile \"*\" run --rm --no-deps frontend pnpm test && docker compose --profile \"*\" up --no-build --abort-on-container-exit --exit-code-from e2e-runner",
+    "test:down": "docker compose --profile \"*\" down -v"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
-    "@types/ws": "^8.18.1",
-    "hono": "^4.13.7",
-    "postal-mime": "^2.7.6",
-    "ws": "^8.21.3"
+    "@playwright/test": "1.65.1",
+    "@types/ws": "^8.18.2",
+    "csv-parse": "^7.0.3",
+    "hono": "^4.13.19",
+    "mimetext": "^3.0.28",
+    "postal-mime": "^4.2.1",
+    "ws": "^8.23.0"
   },
   "dependencies": {
-    "imapflow": "^2.0.2",
-    "nodemailer": "^10.0.9"
+    "imapflow": "^2.12.1",
+    "nodemailer": "^10.6.0"
   }
 }

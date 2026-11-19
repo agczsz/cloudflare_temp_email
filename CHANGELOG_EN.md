@@ -6,7 +6,60 @@
   <a href="CHANGELOG_EN.md">English</a>
 </p>
 
-## v1.13.0(main)
+## v1.14.0(main)
+
+### Features
+
+- feat: |Mail Forwarding| Add recipient address regex filters to forwarding rules, reusing internal delivery with any/all matching
+- feat: |Mailbox Login| Keep session-token access with expiry details, hiding legacy credential contents and blocking legacy cache switches in password-only mode while retaining cache removal
+- feat: |Mailbox Sessions| Extend renewable 30-day JWT issuance to mailbox creation and authorized user, admin, and Telegram access
+- feat: |Mailbox Sessions| Update only the active mailbox JWT on renewal, retaining the existing string cache; expired historical tokens require login; show login method columns or tags only when both token types appear in the list
+- feat: |Admin| Switch between single and batch creation, create batches of up to 100 random-name mailboxes, and export their auto-login links as spreadsheet-safe or lossless CSV
+- feat: |Admin Statistics| Add a dashboard with mail, mailbox, user and sent mail totals, 7- and 30-day mailbox and user activity, and site-wide trends by date
+- feat: |Mail Forwarding| Route forwarding rules internally by configured domain with independent receive processing, extraction and notifications, no second forwarding and only one auto-reply; optionally delete the original at the end and keep global forwarding external-only with its existing behavior
+- feat: |User System| Add `DISABLE_USER_SYSTEM` to block user APIs, disable user admin tokens, and hide user interfaces
+- feat: |Mailbox Sessions| Issue 30-day JWTs at password login when password-only mode is effective, validate mailbox access, and renew through settings below 7 days
+- feat: |Mailbox Login| Add a password-only login-page switch that requires mailbox passwords; preserve existing credentials, login links, API access, and legacy JWT lifetimes
+- feat: |Mailbox Credential| Show a QR code of the auto-login link in the credential dialog for opening the mailbox on mobile, with a reminder that anyone with the QR code can access the mailbox (issue #1189)
+
+### Bug Fixes
+
+- fix: |CI| Increase the unit-test job timeout from 5 to 15 minutes to allow time for dependency installation
+- fix: |Site Authentication| Fail closed for malformed or non-string-array `PASSWORDS` configurations while preserving valid and empty configuration behavior
+- fix: |CI| Wait for save and test responses in Webhook UI tests to avoid flaky assertions against missing or stale requests
+- fix: |Auto Update| Support an optional `UPSTREAM_SYNC_TOKEN` to sync workflow changes, retain the default token when unset, and declare the contents write permission required for syncing
+- fix: |Inbox| Keep the current message and restore the page and page size when pagination fails
+- fix: |Inbox| Show simple inbox refresh success only after a successful fetch
+- fix: |Mail Reader| Sanitize Shadow DOM email previews when remote images are allowed
+- fix: |Health Check| Return `OK` from `/health_check` when the Worker has an `ASSETS` binding instead of the frontend page, so uptime monitors can use it
+- fix: |Create Address| Lowercase generated names before filtering characters, so the default `[^a-z0-9]` rule no longer drops the first letter of each name part and leaves names mangled or too short
+- fix: |Mail Reader| Sandbox regular and fullscreen iframe previews to block scripts in email bodies
+- fix: |Scheduled Cleanup| Catch errors for each built-in and custom SQL cleanup task, log failures, and continue with subsequent tasks
+- fix: |Header| Add horizontal spacing to the phone header
+- fix: |Inbox| Keep failed batch-delete selections and show success only when the batch completes
+- fix: |Mail Processing| Use the newly stored row ID for metadata updates and Telegram links, avoiding wrong-row updates or links when Message-ID is repeated or missing
+- fix: |Mail Reader| Reset inherited application defaults in Shadow mail and use browser-default system colors for a normal document while preserving sender colors
+- fix: |Telegram| Clean up the current push recipient's binding and push mapping before admin mailbox deletion, freeing a slot and preventing stale pushes on recreation; KV cleanup failures preserve the mailbox for retry, while database deletion failures may leave it unbound
+- fix: |CI| Fix WASM npm publishing paths so local tarballs are not interpreted as GitHub repositories
+- fix: |CI| Use the E2E image's built-in tools for service probes so its build does not need Ubuntu package mirrors
+- fix: |CI| Prevent intermittent failures in the recent-mail cleanup test when it crosses a second boundary
+- fix: |CI| Wait for the forwarding settings refresh after saving so browser tests do not intermittently submit stale settings
+- fix: |Mail Parser| Upgrade WASM parser dependencies and use raw values only for structured headers, preserving decoded text headers while fixing `header.From` webhook filters and sender loss after attachment removal
+- fix: |Mail Parser| Support postal-mime v4's first-header semantics: handle empty/missing From in fallback parsing and regenerate MIME type/encoding headers when removing attachments to preserve stored message bodies
+- fix: |Telegram| Store separate permanent internal binding tokens, preserve historical expired bindings, and issue mailbox credentials on access while rejecting internal tokens at mailbox APIs
+- fix: |Worker| Process unknown-mail, unbound-address, and empty-address cleanup in bounded batches to avoid D1 timeouts on large backlogs
+- fix: |User| Bind the mailbox transfer confirmation button to the existing request loading state, fixing the undefined loading variable
+
+### Improvements
+
+- perf: |CI| Reuse E2E images, schedule browser tests in parallel, reduce page reloads, fixed waits and repeated browser actions, and speed up WASM tool installation
+- docs: |Documentation| Add guidance for mailbox, User Center, and Admin Console login entry points; list each Worker variable's required status and default behavior; explain custom roles; compare sending channels; and update Node.js compatibility steps by compatibility date
+- perf: |Database| Upgrade the schema to `v0.0.10` with a covering index for unknown-mail cleanup and an expression-based composite index for domain cleanup; compare major, minor, and patch versions numerically to avoid two-digit version errors and version-marker downgrades
+- docs: |User| Document mailbox binding, bound mailbox credential retrieval, and unbinding APIs with dual authentication requirements and request examples
+
+- perf: |CI| Organize test suites and run a dedicated Webhook UI group alongside API, other browser tests and SMTP/IMAP, with only each group's required services, separate unit/WASM tests and one aggregate check
+
+## v1.13.0
 
 ### Features
 

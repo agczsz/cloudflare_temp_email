@@ -56,10 +56,12 @@ type Bindings = {
     BLACK_LIST: string | undefined
     ENABLE_AUTO_REPLY: string | boolean | undefined
     ENABLE_WEBHOOK: string | boolean | undefined
+    DISABLE_USER_SYSTEM: string | boolean | undefined
     ENABLE_USER_CREATE_EMAIL: string | boolean | undefined
     DISABLE_ANONYMOUS_USER_CREATE_EMAIL: string | boolean | undefined
     ENABLE_USER_DELETE_EMAIL: string | boolean | undefined
     ENABLE_ADDRESS_PASSWORD: string | boolean | undefined
+    ADDRESS_PASSWORD_LOGIN_ONLY: string | boolean | undefined
     ENABLE_AGENT_EMAIL_INFO: string | boolean | undefined
     ENABLE_REDEEM_CODE: string | boolean | undefined
     REDEEM_CODE_URL: string | undefined
@@ -131,9 +133,14 @@ type Bindings = {
     CLEANUP_BATCH_SIZE: string | number | undefined
 }
 
+type JwtType = 'address_credential_login' | 'address_password_login'
+
 type JwtPayload = {
     address: string
     address_id: number
+    type?: JwtType
+    iat?: number
+    exp?: number
 }
 
 type UserPayload = {
@@ -190,7 +197,10 @@ type ParsedEmailContext = {
 type SubdomainForwardAddressList = {
     domains: string[] | undefined | null,
     forward: string,
+    deleteOriginal?: boolean,
     // 来源地址正则匹配 (可选，兼容原配置)
     sourcePatterns?: string[] | undefined | null,  // 来源地址正则表达式列表
     sourceMatchMode?: 'any' | 'all' | undefined,   // 匹配模式: any-任一匹配, all-全部匹配
+    recipientPatterns?: string[] | undefined | null,
+    recipientMatchMode?: 'any' | 'all' | undefined,
 }

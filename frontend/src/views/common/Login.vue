@@ -149,10 +149,10 @@ const generateName = async () => {
         const { faker } = await import('https://esm.sh/@faker-js/faker');
         emailName.value = faker.internet.email()
             .split('@')[0]
+            .toLowerCase()
             .replace(/\s+/g, '.')
             .replace(/\.{2,}/g, '.')
-            .replace(addressRegex.value, '')
-            .toLowerCase();
+            .replace(addressRegex.value, '');
         // support maxAddressLen
         if (emailName.value.length > openSettings.value.maxAddressLen) {
             emailName.value = emailName.value.slice(0, openSettings.value.maxAddressLen);
@@ -283,7 +283,7 @@ onMounted(async () => {
                         v-model:value="loginCfToken" />
 
                     <div class="switch-login-button">
-                        <n-button v-if="openSettings?.enableAddressPassword"
+                        <n-button v-if="openSettings?.enableAddressPassword && !openSettings.addressPasswordLoginOnly"
                             @click="loginMethod === 'password' ? loginMethod = 'credential' : loginMethod = 'password'"
                             type="info" quaternary size="tiny">
                             {{ loginMethod === 'password' ? t('credentialLogin') : t('passwordLogin') }}

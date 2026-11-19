@@ -16,6 +16,7 @@ export interface SmtpAcceptedMessage {
     headers: Headers;
     setReject: (reason: string) => void;
     forward: (rcptTo: string, headers?: Headers) => Promise<void>;
+    reply: (message: any) => Promise<void>;
 }
 
 export interface SmtpSessionLike {
@@ -53,6 +54,8 @@ export function startSmtpServer(opts: {
     host: string;
     allowedDomains: string[];
     onMessage: (message: SmtpAcceptedMessage, session: SmtpSessionLike) => Promise<void>;
+    forward: (message: Pick<SmtpAcceptedMessage, "from" | "to" | "raw">, rcptTo: string) => Promise<void>;
+    reply: (message: any) => Promise<void>;
 }): SMTPServer {
     const allowed = new Set(opts.allowedDomains.map((d) => d.toLowerCase()));
 
@@ -77,14 +80,20 @@ export function startSmtpServer(opts: {
                     const rcpts = session.envelope.rcptTo.map((r) => r.address);
                     for (const rcpt of rcpts) {
                         let rejectReason: string | null = null;
+                        const from = session.envelope.mailFrom?.address || "";
                         const message: SmtpAcceptedMessage = {
-                            from: session.envelope.mailFrom?.address || "",
+                            from,
                             to: rcpt,
                             raw: new Uint8Array(buf),
                             rawSize: buf.length,
                             headers: parseTopHeaders(buf),
                             setReject(reason: string) { rejectReason = reason; },
-                            async forward() { /* CF send_email binding not available on VPS */ },
+                            async forward(rcptTo: string) {
+                                await opts.forward({ from, to: rcpt, raw: new Uint8Array(buf) }, rcptTo);
+                            },
+                            async reply(replyMessage: any) {
+                                await opts.reply(replyMessage);
+                            },
                         };
                         await opts.onMessage(message, session as SmtpSessionLike);
                         if (rejectReason) {

@@ -1,10 +1,8 @@
 # 上游变更核查清单（UPSTREAM CHANGES）
 
-本分支（`vps-node`）在 [agczsz/cloudflare_temp_email](https://github.com/agczsz/cloudflare_temp_email)
-之上做了 VPS（DartNode / Node.js + SQLite）自托管重构。**上游更新时，按本清单逐项核对是否需要同步改动。**
+本分支（`vps-node`）由官方 [dreamhunter2333/cloudflare_temp_email](https://github.com/dreamhunter2333/cloudflare_temp_email) 上游同步，并在托管 fork [agczsz/cloudflare_temp_email](https://github.com/agczsz/cloudflare_temp_email) 中做了 VPS（DartNode / Node.js + SQLite）自托管重构。**上游更新时，按本清单逐项核对是否需要同步改动。**
 
-> 上游更新操作建议：`git fetch origin && git diff HEAD...origin/main -- worker/src server/src` 对照下表审查，
-> 逐条判断"上游的改动是否影响我们的补丁"。
+> 上游更新操作建议：以官方仓库 `dreamhunter2333/cloudflare_temp_email` 的指定 release tag 为准；本仓库 `origin` 是 VPS fork，不能把 `origin/main` 当作官方上游。先比较上一已同步 tag 与目标 tag，再对照本清单逐条审查上游改动是否影响本地补丁。
 
 ---
 
@@ -103,6 +101,7 @@
 | 本次 | **发件 + 邮件客户端端口**：`sendmail.ts`（SEND_MAIL→MX 路由直投器：`dns.resolveMx` 选 MX + nodemailer 纯客户端 25 端口投递 + DKIM 签名；配置 SEND_RELAY_* 可切 smarthost 中继。注：nodemailer ≥6 已移除内建 `direct:true`，故自实现 MX 路由）、`submit.ts`（465 隐式 SSL 提交，AUTH=地址+地址密码，from 锁定）、`imap.ts`（993 隐式 SSL 只读 IMAP，raw_blob 自动解压）；`build.mjs` 的 EmailMessage stub 携带 from/to/raw；DKIM DNS：`smtp._domainkey.266666.best` TXT（DMARC 沿用上游默认 `_dmarc` p=none + Cloudflare 报告地址）；新增依赖 nodemailer（锁定 ^6，v7+ 直投行为变化） | 无上游文件改动（纯新增组件 + `build.mjs`/`entry.ts`/`config.example.json`） |
 
 | 当前（2026-11-13） | **VPS 全局地址余额不限（有意区别于上游）**：只覆盖 `worker/src/mails_api/send_balance.ts` 中现有 `getSendBalanceState()` 的 no-limit 判定，使其所有地址返回 `balance: -1`、`needCheckBalance: false`；由上游原有 `send_mail_api.ts` 自然跳过地址余额拒绝与扣减。不清空/迁移已有 `address_sender` 行，不改请求额度 API、每日/月度限额实现；`dailyLimit: -1` 仍由上游配额模块处理。两个发信页面识别 `-1` 并显示“不限”。上游若改动余额状态函数/额度扣减，合并时需复核此最小覆盖点 | `worker/src/mails_api/send_balance.ts`、发信视图 |
+| 2026-11-19 | **手动同步官方 v1.14.0**（tag commit `8a2714c5a843905c58b150683cac67969409336b`）：融合 mailbox password-only/续期会话、Addy route 保持原样、Telegram binding token 分离、`DISABLE_USER_SYSTEM`、收件人正则过滤/站内转发/转发后删除、批量清理与独立失败处理、邮件行 ID、管理统计/批量地址、前端安全渲染等上游改动；新增 `db/2026-11-06-cleanup-indexes.sql`（仅索引）。保留 `fireAndForget()`、启用 WASM 解析、Addy `/api/v1/` 自鉴权放行、`TELEGRAM_WEBHOOK_HOST`、VPS 地址级余额不限与 UI、Docker/Node/SQLite 部署差异；`server/src/smtp.ts`/`entry.ts` 增加 Worker `forward()` / `reply()` 对接现有发件器，避免 VPS 上转发和自动回复静默无效。E2E 测试目录按上游布局移动，原本地余额回归断言保留 | `worker/`、`frontend/`、`db/`、`e2e/`、`server/src/smtp.ts`、`server/src/entry.ts` |
 
 ## 七、已知与上游行为不一致的点（有意为之）
 
@@ -122,3 +121,12 @@
   修复方案（前端 3 文件约 4 行）：`store/index.js` 加 `adminMailsSubTab = useSessionStorage('adminMailsSubTab','mails')`；
   `Admin.vue` mails 子 tabs 加 `v-model:value="adminMailsSubTab"`；`Account.vue` 两处点击改
   `adminTab.value='mails'; adminMailsSubTab.value='sendBox'`。已实测该改法可正确跳转，按用户要求已回滚还原。
+
+## 九、v1.14.0 本地合并复核
+
+- 基线：从 `v1.13.0` 对比官方 `dreamhunter2333/cloudflare_temp_email` 的 `v1.14.0` tag；不要从 VPS fork 的 `origin/main` 拉取替代上游。
+- 依赖：Worker 按官方升至 1.14.0，保留 `mail-parser-wasm-worker`；本地 WASM 解析继续优先，失败时回退 PostalMime。Node 的 `server/package.json` 也将 PostalMime 对齐至 `^4.2.1`，以免 SMTP sendbox 仍使用上游已修复前的 v3 解析行为；覆盖 Worker bundle 和 Node bundle 的解析回归。
+- SQLite：`server/src/d1.ts` 的 `batch()` 与 `run()` 支持上游统计/数据库 API 使用的 SELECT 查询并返回 D1 兼容的 `results`；新迁移只创建 `raw_mails` 清理查询索引。`server/src/entry.ts` 会在启动时自动尝试应用 `db/*.sql`，迁移需在临时库验证，不手动改线上库。
+- Node 邮件消息契约：上游 `ForwardableEmailMessage` 的 `forward()` / `reply()` 在 VPS 上由 `server/src/smtp.ts` 转接到 `server/src/entry.ts` 中的 `SEND_MAIL` 绑定替代实现。内域地址由上游 `receiveEmail(..., allowForward=false)` 走内部投递，避免递归转发；外域及自动回复走现有 Nodemailer 路径。
+- 用户系统配置：`DISABLE_USER_SYSTEM` 缺省为关闭；VPS 示例配置明确设为 `false`，不影响当前用户 API。`ADDRESS_PASSWORD_LOGIN_ONLY` 也保持默认关闭，启用前应先验证邮件客户端密码登录和网页登录行为。
+- 测试边界：本地 E2E 目录采用上游新布局；`e2e/unit/tests/statistics.test.mjs` 的 import-line stripping 使用 `\r?\n`，兼容 Windows CRLF 工作区；地址余额仍只对应用层显示为不限，日/月度配额测试不删改。Worker 的 Cloudflare 部署构建不属于 VPS 发布流程；VPS 验证使用 `server` bundle、前端构建和 Node/SQLite 烟测。

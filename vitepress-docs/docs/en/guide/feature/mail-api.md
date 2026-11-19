@@ -1,5 +1,21 @@
 # Mail API
 
+## Mailbox Password JWT Validation and Renewal
+
+Mailbox APIs accept legacy mailbox credentials and password sessions containing `type: "address_password_login"`, `address`, `address_id`, `iat`, and `exp`. The backend verifies signatures and mailbox identity, and requires password sessions to be unexpired, issued no later than the current time, and valid for no more than 30 days.
+
+- Mailbox APIs retain `Authorization: Bearer <jwt>` without a database migration.
+- `GET /api/settings` returns only `address`, `send_balance`, and `new_address_token`. A valid password-session JWT with less than seven days remaining receives a new 30-day token; otherwise the field is `null`. Legacy credentials do not renew, and expired sessions must log in again.
+- Clients must replace their current token only when `new_address_token` is non-null; when it is `null`, keep using the current token.
+
+The web client updates only the active JWT from one successful settings response. The local cache retains token strings and its existing append and bind behavior, without replacing or deduplicating historical tokens. Switching to an expired cached session requires logging in again. JWT decoding is only for mailbox, login-method, and token-expiry display; authorization remains on the backend.
+
+With both `ENABLE_ADDRESS_PASSWORD=true` and `ADDRESS_PASSWORD_LOGIN_ONLY=true`, password login, mailbox creation, and authorized user, admin, and Telegram access issue 30-day password-session JWTs for mailbox API access and renewal through settings below seven days. With `ENABLE_ADDRESS_PASSWORD=false`, password login returns 403. With mailbox passwords enabled and `ADDRESS_PASSWORD_LOGIN_ONLY=false`, password login issues legacy credentials. Creation and other authorized entry points issue legacy credentials whenever password-only mode is ineffective. Previously issued valid sessions remain usable and renewable. Legacy credentials, credential-login links, and direct API access remain compatible. API clients must replace their current token only when `new_address_token` is non-null. Changing the mailbox password does not revoke issued JWTs. A session renewed before every expiry has no fixed end date.
+
+The UI keeps session-token access and shows the token expiry time. Auto-login links and QR codes using that token expire at the same time. Password-only mode hides legacy credential contents, connection details, and legacy mailbox-switching options. The management table retains legacy cache entries for manual removal and hides their switch action. The selector still shows the known current mailbox. Disabling the switch restores legacy cache switching.
+
+Telegram retains its separate permanent internal binding tokens. Expiry is ignored only for stored historical bindings read after Telegram authentication, with signature and mailbox identity still checked. New bindings require normal mailbox authentication.
+
 ## Viewing Emails via Mail API
 
 This is a `python` example using the `requests` library to view emails.
@@ -159,12 +175,41 @@ print(response.json())
 ## User Mail API
 
 ::: warning Note: User JWT vs Address JWT
-This endpoint uses **User JWT** (obtained via `/user_api/login` or `/user_api/register`), with `x-user-token` header.
+These endpoints use a **User JWT** (obtained via `/user_api/login` after registration), with the `x-user-token` header. Binding an address also requires an Address JWT in the same request.
 
 **Do not confuse with Address JWT**:
 - Address JWT uses `Authorization: Bearer <jwt>` to access `/api/*` endpoints
 - User JWT uses `x-user-token: <jwt>` to access `/user_api/*` endpoints
 :::
+
+### Bind an Email Address to a User Account
+
+Binding associates an existing mailbox with the currently logged-in user account so it can be managed in the user center. For Telegram bindings, see [Telegram Bot](./telegram.md#per-user-mail-push).
+
+`POST /user_api/bind_address` requires both credentials:
+
+| Header | Value |
+| --- | --- |
+| `x-user-token` | The current account's User JWT, from the `jwt` field returned by `POST /user_api/login` |
+| `Authorization` | `Bearer <Address-JWT>`, using the `jwt` returned when [creating a mailbox](./new-address-api.md) or the Address JWT obtained after mailbox login |
+
+No request body is required. User and mailbox identities come from these two JWTs; `user_id`, `address_id`, and email addresses cannot be supplied through the request body. Include `x-custom-auth` if the site requires an access password.
+
+```python
+import requests
+
+response = requests.post(
+    "https://<your-worker-address>/user_api/bind_address",
+    headers={
+        "x-user-token": "<your-user-JWT-token>",
+        "Authorization": "Bearer <your-address-JWT>",
+        # "x-custom-auth": "<your-site-password>",
+    },
+)
+print(response.json())  # {"success": True}
+```
+
+Success returns `{"success": true}`; binding the same address to the same user again also succeeds. An address already bound to another user or a user who has reached their address limit results in 400.
 
 ### Bound Address List
 
@@ -193,6 +238,42 @@ querystring = {
 }
 response = requests.get(url, headers=headers, params=querystring)
 print(response.json())
+```
+
+### Get an Address JWT for a Bound Mailbox
+
+`GET /user_api/bind_address_jwt/:address_id` uses the User JWT and only returns credentials for mailboxes bound to the current user. Obtain `address_id` from `results[].id` in the bound address list above. Use the returned `jwt` as `Authorization: Bearer <jwt>` for `/api/*` mailbox endpoints.
+
+```python
+import requests
+
+address_id = 1
+response = requests.get(
+    f"https://<your-worker-address>/user_api/bind_address_jwt/{address_id}",
+    headers={
+        "x-user-token": "<your-user-JWT-token>",
+        # "x-custom-auth": "<your-site-password>",
+    },
+)
+print(response.json())  # {"jwt": "..."}
+```
+
+### Unbind an Email Address
+
+`POST /user_api/unbind_address` uses the User JWT with a body of `{"address_id": 1}` and returns `{"success": true}` on success. It removes only the current user's association with the mailbox, without deleting the mailbox or its messages or revoking issued Address JWTs. Save the mailbox credential before unbinding to retain access or bind it again later.
+
+```python
+import requests
+
+response = requests.post(
+    "https://<your-worker-address>/user_api/unbind_address",
+    headers={
+        "x-user-token": "<your-user-JWT-token>",
+        # "x-custom-auth": "<your-site-password>",
+    },
+    json={"address_id": 1},
+)
+print(response.json())  # {"success": True}
 ```
 
 ### User Mail List

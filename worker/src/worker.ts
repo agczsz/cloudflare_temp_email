@@ -42,7 +42,11 @@ app.onError((err, c) => {
 app.use('/*', async (c, next) => {
 
 	// check if the request is for static files
-	if (c.env.ASSETS && !API_PATHS.some(path => c.req.path.startsWith(path))) {
+	if (
+		c.env.ASSETS
+		&& c.req.path !== "/health_check"
+		&& !API_PATHS.some(path => c.req.path.startsWith(path))
+	) {
 		const url = new URL(c.req.raw.url);
 		if (!url.pathname.includes('.')) {
 			url.pathname = ""
@@ -190,6 +194,9 @@ app.use('/api/*', async (c, next) => {
 });
 // user_api auth
 app.use('/user_api/*', async (c, next) => {
+	if (getBooleanValue(c.env.DISABLE_USER_SYSTEM)) {
+		return c.text("User system is disabled", 403);
+	}
 	if (
 		c.req.path.startsWith("/user_api/open_settings")
 		|| c.req.path.startsWith("/user_api/register")
@@ -261,7 +268,7 @@ app.use('/admin/*', async (c, next) => {
 	}
 	// check if user is admin
 	const access_token = c.req.raw.headers.get("x-user-access-token");
-	if (c.env.ADMIN_USER_ROLE && access_token) {
+	if (!getBooleanValue(c.env.DISABLE_USER_SYSTEM) && c.env.ADMIN_USER_ROLE && access_token) {
 		try {
 			const payload = await Jwt.verify(access_token, c.env.JWT_SECRET, { alg: "HS256", exp: false });
 			// check expired

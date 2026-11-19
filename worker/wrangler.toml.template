@@ -17,8 +17,6 @@ keep_vars = true
 # enable cron if you want set auto clean up
 # [triggers]
 # crons = [ "0 0 * * *" ]
-# Per-run limit for mail, sent-mail, and creation/activity-based address cleanup. Defaults to 3000, maximum 5000.
-# CLEANUP_BATCH_SIZE = 3000
 
 # send_email = [
 #    { name = "SEND_MAIL" },
@@ -75,6 +73,8 @@ DOMAINS = ["xxx.xxx1" , "xxx.xxx2"] # all domain names
 # ]
 JWT_SECRET = "xxx"
 BLACK_LIST = ""
+# Disable the user system and hide its frontend entries
+# DISABLE_USER_SYSTEM = true
 # Allow users to create email addresses
 ENABLE_USER_CREATE_EMAIL = true
 # Disable anonymous user create email, if set true, users can only create email addresses after logging in
@@ -93,6 +93,9 @@ ENABLE_AUTO_REPLY = false
 # ENABLE_WEBHOOK = true
 # Enable address password feature, if set true, will generate password for new address and support password login and change
 # ENABLE_ADDRESS_PASSWORD = false
+# Show only password login and issue renewable 30-day mailbox sessions (requires ENABLE_ADDRESS_PASSWORD).
+# Legacy credentials, login links, and API access remain supported.
+# ADDRESS_PASSWORD_LOGIN_ONLY = false
 # Show AI Agent mailbox connection info in the address credential modal
 # ENABLE_AGENT_EMAIL_INFO = true
 # Show SMTP/IMAP client connection info in the address credential modal
@@ -125,7 +128,7 @@ ENABLE_AUTO_REPLY = false
 # TG_ALLOW_USER_LANG = true
 # enable sending email attachments via Telegram push (50MB per file limit)
 # ENABLE_TG_PUSH_ATTACHMENT = true
-# global forward address list, if set, all emails will be forwarded to these addresses
+# Global external-only forwarding via Cloudflare; does not use internal mailbox delivery
 # FORWARD_ADDRESS_LIST = ["xxx@xxx.com"]
 # subdomain forward address list, if set, subdomain emails will be forwarded to these addresses
 # SUBDOMAIN_FORWARD_ADDRESS_LIST = """
@@ -150,6 +153,8 @@ ENABLE_AUTO_REPLY = false
 # REMOVE_ALL_ATTACHMENT = true
 # enable gzip compressed email storage in raw_blob column (run db_migration first)
 # ENABLE_MAIL_GZIP = true
+# Per-run limit for built-in mail, sent-mail, and address cleanup tasks. Defaults to 3000, maximum 5000.
+# CLEANUP_BATCH_SIZE = 3000
 # Email extraction, automatically extract verification codes, auth links, etc.
 # ENABLE_AI_EMAIL_EXTRACT = true
 # Extraction mode: "local" (default, built-in rules, verification codes only, mail never sent to AI)

@@ -1,9 +1,9 @@
 export const CONSTANTS = {
-    VERSION: 'v' + '1.13.0',
+    VERSION: 'v' + '1.14.0',
 
     // DB Version
     DB_VERSION_KEY: 'db_version',
-    DB_VERSION: "v0.0.9",
+    DB_VERSION: "v0.0.10",
 
     // DB settings
     ADDRESS_BLOCK_LIST_KEY: 'address_block_list',

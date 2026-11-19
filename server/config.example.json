@@ -14,7 +14,9 @@
     "ADMIN_PASSWORDS": ["CHANGE-ME-admin-password"],
     "ENABLE_USER_CREATE_EMAIL": true,
     "ENABLE_USER_DELETE_EMAIL": true,
+    "DISABLE_USER_SYSTEM": false,
     "ENABLE_ADDRESS_PASSWORD": true,
+    "ADDRESS_PASSWORD_LOGIN_ONLY": false,
 
     "ENABLE_AI_EMAIL_EXTRACT": true,
     "AI_EXTRACT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",

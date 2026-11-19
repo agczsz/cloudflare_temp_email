@@ -103,6 +103,12 @@ async function main() {
         host: cfg.SMTP_HOST || "0.0.0.0",
         allowedDomains: allDomains,
         onMessage: (message) => worker.email(message as any, env, { waitUntil: () => { } } as any),
+        forward: async (message, rcptTo) => {
+            await mailer.send({ from: message.from, to: rcptTo, raw: message.raw });
+        },
+        reply: async (message) => {
+            await mailer.send(message);
+        },
     });
 
     // optional mail-client ports: SMTPS submission (:465) + IMAPS (:993)

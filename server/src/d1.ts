@@ -53,10 +53,21 @@ export class D1PreparedStatement {
         };
     }
 
-    async run(): Promise<{ success: boolean; meta: any }> {
+    async run(): Promise<{ success: boolean; results: any[]; meta: any }> {
         const t0 = Date.now();
-        const info = this.stmt().run(...this.params.map(toSqlite));
+        const statement = this.stmt();
+        const params = this.params.map(toSqlite);
+        if (statement.reader) {
+            const results = params.length ? statement.all(...params) : statement.all();
+            return {
+                results,
+                success: true,
+                meta: { changes: 0, rows_read: results.length, duration: Date.now() - t0 },
+            };
+        }
+        const info = params.length ? statement.run(...params) : statement.run();
         return {
+            results: [],
             success: true,
             meta: {
                 changes: info.changes,
@@ -90,8 +101,20 @@ export class D1Database {
             stmts.map((s) => {
                 const st = (s as any).stmt();
                 const params = (s as any).params.map(toSqlite);
+                if (st.reader) {
+                    const results = params.length ? st.all(...params) : st.all();
+                    return {
+                        results,
+                        success: true,
+                        meta: { changes: 0, rows_read: results.length },
+                    };
+                }
                 const info = params.length ? st.run(...params) : st.run();
-                return { success: true, meta: { changes: info.changes, last_row_id: Number(info.lastInsertRowid) } };
+                return {
+                    results: [],
+                    success: true,
+                    meta: { changes: info.changes, last_row_id: Number(info.lastInsertRowid) },
+                };
             }));
         return runAll(statements);
     }
